@@ -1,9 +1,17 @@
+var ee2 = require('eventemitter2').EventEmitter2;
+
 var Id = require('dht-id');
 
 exports = module.exports = FingerTable;
 
 function FingerTable (peerId, events, channelManager) {
     var self = this;
+
+    self.events = new ee2({
+        wildcard: true,
+        newListener: false,
+        maxListeners: 20
+    });
 
     var predecessorId;
     var table = {};
@@ -37,6 +45,8 @@ function FingerTable (peerId, events, channelManager) {
             }
             table[data.rowIndex].fingerId = data.fingerId;
             table[data.rowIndex].channel = channel;
+
+            self.events.emit('fingerUpdate', {});
         });
 
     };

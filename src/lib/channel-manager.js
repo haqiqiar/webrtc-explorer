@@ -29,6 +29,16 @@ function ChannelManager(peerId, ioc, router) {
             }});
         });
 
+        channel.on('connect', function() {
+            delete _pendingConnections[dstId];
+            console.log('channel ready to send');
+            channel.on('data', function(){
+                console.log('DEBUG: this channel should be '+
+                    'only used to send and not to receive');
+            });
+            cb(null, channel);
+        });
+
         var listener = ioc.on('c-offer-accepted', offerAccepted);
 
         function offerAccepted(data) {
@@ -41,15 +51,7 @@ function ChannelManager(peerId, ioc, router) {
 
             channel.signal(data.offer.signal);
 
-            channel.on('connect', function() {
-                delete _pendingConnections[data.offer.intentId];
-                console.log('channel ready to send');
-                channel.on('message', function(){
-                    console.log('DEBUG: this channel should be '+
-                        'only used to send and not to receive');
-                });
-                cb(null, channel);
-            });
+
         }
     };
 
@@ -59,11 +61,11 @@ function ChannelManager(peerId, ioc, router) {
         console.log('acceptOffer: %s', JSON.stringify(data));
 
         var channel;
-        if(!(data.offer.intentId in _pendingConnections)){
+        if(!(data.offer.srcId in _pendingConnections)){
             channel = new SimplePeer({wrtc: wrtc});
             channel.on('connect', function() {
                 console.log('channel ready to listen');
-                channel.on('message', router);
+                channel.on('data', router);
             });
 
             channel.on('signal', function (signal){
@@ -72,9 +74,9 @@ function ChannelManager(peerId, ioc, router) {
                 ioc.emit('s-offer-accepted', data);
             });
 
-            _pendingConnections[data.offer.intentId] = channel;
+            _pendingConnections[data.offer.srcId] = channel;
         } else {
-            channel = _pendingConnections[data.offer.intentId];
+            channel = _pendingConnections[data.offer.srcId];
         }
 
         channel.signal(data.offer.signal);
