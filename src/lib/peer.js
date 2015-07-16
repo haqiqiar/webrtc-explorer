@@ -50,7 +50,7 @@ function Peer(config) {
 
     /// module api
 
-    self.register = function() {
+    self.register = function(peerId) {
         ioc.once('c-registered', registered);
 
         function registered(data) {
@@ -61,12 +61,22 @@ function Peer(config) {
             self.fingerTable = new FingerTable(self.peerId, 
                                                self.events,
                                                self.channelManager);
+            var readyEventSent = false;
+            self.fingerTable.events.on('fingerUpdate', function(data){
+                if(readyEventSent) return;
+                //Send the ready event for the first 'fingerUpdate' event
+                readyEventSent = true;
+                self.events.emit('ready', {});
+            });
             self.events.emit('registered', {peerId: data.peerId});
         }
 
-        ioc.emit('s-register', {});
+        ioc.emit('s-register', {'id' : peerId});
     };
 
+    self.updateResourceProviderState = function(enable){
+      ioc.emit('update-resource-state', {'provideResources' : enable});
+    };
 
     self.send = function(dstId, data) {
         var envelope = {
@@ -82,8 +92,10 @@ function Peer(config) {
     function router(envelope) {
         var nextHop = self.fingerTable.bestCandidate(envelope.dstId);
         console.log('nextHop:', nextHop, envelope);
-        if (nextHop === self.peerId.toHex()) {
+        if (nextHop === self.peerId.toHex() && envelope.dstId === self.peerId.toHex()) {
             return self.events.emit('message', envelope);
+        } else if (nextHop === self.peerId.toHex()){
+            return self.events.emit('message-non-routable', envelope);
         } else {
             self.fingerTable.channelTo(nextHop).send(envelope);
         }
