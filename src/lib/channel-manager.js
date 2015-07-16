@@ -1,7 +1,10 @@
 var SimplePeer = require('simple-peer');
-var wrtc = require('wrtc')
+var wrtc = require('wrtc');
 
 exports = module.exports = ChannelManager;
+
+
+var _pendingConnections = {};
 
 function ChannelManager(peerId, ioc, router) {
     var self = this;
@@ -17,7 +20,7 @@ function ChannelManager(peerId, ioc, router) {
         var channel = new SimplePeer({initiator: true, wrtc: wrtc});
 
         channel.on('signal', function (signal) {
-            console.log('sendOffer');
+            console.log('sendOffer %s', JSON.stringify(signal));
             ioc.emit('s-send-offer', {offer: {
                 intentId: intentId,
                 srcId: peerId.toHex(),
@@ -34,11 +37,12 @@ function ChannelManager(peerId, ioc, router) {
 //                        data.offer.intentId, intentId);
                 return; 
             }
-            console.log('offerAccepted');
+            console.log('offerAccepted: %s', JSON.stringify(data.offer.signal));
 
             channel.signal(data.offer.signal);
 
-            channel.on('ready', function() {
+            channel.on('connect', function() {
+                delete _pendingConnections[data.offer.intentId];
                 console.log('channel ready to send');
                 channel.on('message', function(){
                     console.log('DEBUG: this channel should be '+
@@ -52,19 +56,26 @@ function ChannelManager(peerId, ioc, router) {
     /// accept offers from peers that want to connect
 
     ioc.on('c-accept-offer', function(data) {
-        console.log('acceptOffer');
-        var channel = new SimplePeer({wrtc: wrtc});
+        console.log('acceptOffer: %s', JSON.stringify(data));
 
-        channel.on('ready', function() { 
-            console.log('channel ready to listen');
-            channel.on('message', router);
-        });
+        var channel;
+        if(!(data.offer.intentId in _pendingConnections)){
+            channel = new SimplePeer({wrtc: wrtc});
+            channel.on('connect', function() {
+                console.log('channel ready to listen');
+                channel.on('message', router);
+            });
 
-        channel.on('signal', function (signal){
-            // log('sending back my signal data');
-            data.offer.signal = signal;
-            ioc.emit('s-offer-accepted', data);
-        });
+            channel.on('signal', function (signal){
+                // log('sending back my signal data');
+                data.offer.signal = signal;
+                ioc.emit('s-offer-accepted', data);
+            });
+
+            _pendingConnections[data.offer.intentId] = channel;
+        } else {
+            channel = _pendingConnections[data.offer.intentId];
+        }
 
         channel.signal(data.offer.signal);
     });
