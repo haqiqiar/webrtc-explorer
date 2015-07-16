@@ -32,10 +32,11 @@
   "dependencies": {
     "dht-id": "^1.0.0",
     "eventemitter2": "^0.4.14",
-    "simple-peer": "git://github.com/areiter/simple-peer.git",
+    "simple-peer": "^5.11.4",
     "socket.io-client": "^1.1.0",
     "node-localstorage": "^0.5.1",
-    "wrtc": "^0.0.56"
+    "wrtc": "^0.0.56",
+    "uuid": "^2.0.1"
   },
   "devDependencies": {
     "code": "^1.2.1",
