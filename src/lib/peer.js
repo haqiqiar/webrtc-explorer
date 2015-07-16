@@ -1,11 +1,13 @@
 var ee2 = require('eventemitter2').EventEmitter2;
 var io = require('socket.io-client');
-var bows = require('bows'); 
 var Id = require('dht-id');
 var FingerTable = require('./finger-table.js');
 var ChannelManager = require('./channel-manager.js');
 
-log = bows('webrtc-explorer');
+if (typeof localStorage === "undefined" || localStorage === null) {
+    var LocalStorage = require('node-localstorage').LocalStorage;
+    localStorage = new LocalStorage('./scratch');
+}
 
 exports = module.exports = Peer;
 
@@ -28,7 +30,7 @@ function Peer(config) {
     ioc.once('connect', connected);
     ioc.on('c-finger-update', function(data) {
         if (!self.fingerTable) {
-            log('DEBUG: got a finger-update before finger table was ready');
+            console.log('DEBUG: got a finger-update before finger table was ready');
         }
 
         self.fingerTable.fingerUpdate(data);
@@ -36,14 +38,14 @@ function Peer(config) {
 
     ioc.on('c-predecessor', function(data) {
         if (!self.fingerTable) {
-            log('DEBUG: got a predecessor before finger table was ready');
+            console.log('DEBUG: got a predecessor before finger table was ready');
         }
         self.fingerTable.predecessorUpdate(data);
     });
 
 
     function connected() {
-        log('socket.io connection established');
+        console.log('socket.io connection established');
     }
 
     /// module api
@@ -79,7 +81,7 @@ function Peer(config) {
 
     function router(envelope) {
         var nextHop = self.fingerTable.bestCandidate(envelope.dstId);
-        log('nextHop:', nextHop, envelope);
+        console.log('nextHop:', nextHop, envelope);
         if (nextHop === self.peerId.toHex()) {
             return self.events.emit('message', envelope);
         } else {

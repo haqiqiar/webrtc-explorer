@@ -15,19 +15,19 @@ function FingerTable (peerId, events, channelManager) {
     };
 
     self.fingerUpdate = function(data) {
-        log('finger-update', data);
+        console.log('finger-update', data);
         // 1. Check if needs to perform a new connect or just update an entry on the table
         // 2. Connect if necessary
         // 3. Once connected, update the finger tableA
 
         if (table[data.rowIndex] &&
                 table[data.rowIndex].fingerId === data.fingerId) {
-            log('already had establish this channel with: ', data.fingerId);
+            console.log('already had establish this channel with: ', data.fingerId);
             return;
         }
 
         channelManager.connect(data.fingerId, function(err, channel) {
-            log('finger table row update: ',
+            console.log('finger table row update: ',
                 data.rowIndex, data.fingerId);
             if(!table[data.rowIndex]) {
                 table[data.rowIndex] = {};

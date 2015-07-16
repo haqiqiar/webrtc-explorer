@@ -1,4 +1,5 @@
 var SimplePeer = require('simple-peer');
+var wrtc = require('wrtc')
 
 exports = module.exports = ChannelManager;
 
@@ -8,16 +9,15 @@ function ChannelManager(peerId, ioc, router) {
     /// establish a connection to another peer
 
     self.connect = function(dstId, cb) {
-        log('connect to: ', dstId);
+        console.log('connect to: ', dstId);
 
         var intentId = (~~(Math.random() * 1e9))
                         .toString(36) + Date.now();
 
-        var channel = new SimplePeer({initiator: true,
-                                      trickle: false});
+        var channel = new SimplePeer({initiator: true, wrtc: wrtc});
 
         channel.on('signal', function (signal) {
-            log('sendOffer');
+            console.log('sendOffer');
             ioc.emit('s-send-offer', {offer: {
                 intentId: intentId,
                 srcId: peerId.toHex(),
@@ -34,14 +34,14 @@ function ChannelManager(peerId, ioc, router) {
 //                        data.offer.intentId, intentId);
                 return; 
             }
-            log('offerAccepted');
+            console.log('offerAccepted');
 
             channel.signal(data.offer.signal);
 
             channel.on('ready', function() {
-                log('channel ready to send');
+                console.log('channel ready to send');
                 channel.on('message', function(){
-                    log('DEBUG: this channel should be '+
+                    console.log('DEBUG: this channel should be '+
                         'only used to send and not to receive');
                 });
                 cb(null, channel);
@@ -52,11 +52,11 @@ function ChannelManager(peerId, ioc, router) {
     /// accept offers from peers that want to connect
 
     ioc.on('c-accept-offer', function(data) {
-        log('acceptOffer');
-        var channel = new SimplePeer({trickle: false});
+        console.log('acceptOffer');
+        var channel = new SimplePeer({wrtc: wrtc});
 
         channel.on('ready', function() { 
-            log('channel ready to listen');
+            console.log('channel ready to listen');
             channel.on('message', router);
         });
 
