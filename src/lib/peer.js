@@ -3,6 +3,7 @@ var io = require('socket.io-client');
 var Id = require('dht-id');
 var FingerTable = require('./finger-table.js');
 var ChannelManager = require('./channel-manager.js');
+var PeerConnection = require('./peer-connection.js');
 
 if (typeof localStorage === "undefined" || localStorage === null) {
     var LocalStorage = require('node-localstorage').LocalStorage;
@@ -14,6 +15,7 @@ exports = module.exports = Peer;
 // config: {
 //     signalingURL: <IP or Host of webrtc-ring-signaling-server>
 //     logging: defaults to false,
+//     createPeerConnections: defaults to false
 // }
 function Peer(config) {
     localStorage.debug = config.logging || false;
@@ -24,6 +26,8 @@ function Peer(config) {
         newListener: false,
         maxListeners: 20 
     });
+
+    var peerconnections = {};
 
     var ioc = io(config.signalingURL + '/');
 
@@ -81,6 +85,7 @@ function Peer(config) {
     self.send = function(dstId, data) {
         var envelope = {
             dstId: dstId,
+            srcId: self.peerId.toHex(),
             data: data
         };
         
@@ -93,7 +98,14 @@ function Peer(config) {
         var nextHop = self.fingerTable.bestCandidate(envelope.dstId);
         console.log('nextHop:', nextHop, envelope);
         if (nextHop === self.peerId.toHex() && envelope.dstId === self.peerId.toHex()) {
-            return self.events.emit('message', envelope);
+            self.events.emit('message', envelope);
+            if(config.createPeerConnections){
+                if(!(envelope.srcId in peerconnections)){
+                    peerconnections[envelope.srcId] = new PeerConnection({dstId: envelope.srcId}, self);
+                    self.events.emit('new-peerconnection', peerconnections[envelope.srcId]);
+                }
+                peerconnections[envelope.srcId].events.emit('message', envelope);
+            }
         } else if (nextHop === self.peerId.toHex()){
             return self.events.emit('message-non-routable', envelope);
         } else {
