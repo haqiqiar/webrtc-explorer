@@ -30,14 +30,14 @@
   "author": "David Dias <daviddias.p@gmail.com>",
   "license": "MIT",
   "dependencies": {
-    "dht-id": "^1.0.0",
-    "eventemitter2": "^0.4.14",
-    "simple-peer": "^5.11.4",
-    "socket.io-client": "^1.1.0",
-    "node-localstorage": "^0.5.1",
-    "wrtc": "^0.0.56",
-    "uuid": "^2.0.1",
-    "q" : "^1.4.1"
+    "dht-id": "latest",
+    "eventemitter2": "latest",
+    "simple-peer": "latest",
+    "socket.io-client": "latest",
+    "node-localstorage": "latest",
+    "wrtc": "latest",
+    "uuid": "latest",
+    "q" : "latest"
   },
   "devDependencies": {
     "code": "^1.2.1",
