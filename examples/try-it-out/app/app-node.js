@@ -1,8 +1,8 @@
 var Explorer = require('./../../../src/explorer.js');
-var PeerConnection = require('./../../../src/peer-connection.js');
 var uuid = require('uuid');
 var Id = require('dht-id');
 var wrtc = require('wrtc');
+
 
 console.log('start');
 
@@ -10,6 +10,7 @@ var config = {
     signalingURL: 'http://localhost:9000',
     logging: true,
     createPeerConnections: true,
+    fingerTableRefreshmentInterval: 10000,
     wrtc: wrtc
 };
 
@@ -32,73 +33,33 @@ peer.events.on('registered', function(data) {
 peer.events.on('ready', function() {
     console.log('READY: ready to send messages');
 
-    if(myPeerId === 'client1'){
-        var p2 = peer.peerConnection(Id.hash("client2"));
-        var doDirectConnect = true;
-        setTimeout(function() {
-            var tick = new Date().getTime();
+    if(myPeerId.indexOf('client') === 0){
+        setTimeout(function(){
 
-            var pong = (function(d) {
-                console.log("2 Ping completed %d %s", new Date().getTime() - tick, doDirectConnect);
-                tick = new Date().getTime();
+            var dhtTime;
+            var directTime;
+            var peerId;
+            discoverRandomPeer()
+                .then(function(p){peerId = p; return p;})
+                .then(doPing)
+                .then(function (t){dhtTime = t; return peerId;})
+                .then(doDirectConnect)
+                .then(function(c){return doPing(peerId);})
+                .then(function(t){
+                    directTime = t;
 
-                    p2.directConnect().then(function () {
-                        doDirectConnect = false;
-                        console.log("Direct connection established");
-                        tick = new Date().getTime();
-                        p2.ping("blub").then(pong);
-                    });
+                    console.log("DHT/Direct ping time %d/%d", dhtTime, directTime);
+                })
+                .then(function(c){return doPing(peerId);})
+                .then(function(t){
+                    directTime = t;
 
-                //p2.ping().then(pong);
-            });
+                    console.log("DHT/Direct ping time %d/%d", dhtTime, directTime);
+                });
+            //doPing(Id.hash("client2")).then(function(){
 
-            p2.ping("blub").then(pong);
+            //});
         }, 1000);
-
-        /*var p3 = new PeerConnection({'dstId':Id.hash("client3")}, peer);
-        setTimeout(function() {
-            var tick = new Date().getTime();
-
-            var pong = (function(d){
-                console.log("3 Ping completed %d", new Date().getTime() - tick);
-                tick = new Date().getTime();
-                //p3.ping().then(pong);
-            });
-
-            p3.ping("blub").then(pong);
-        }, 1000);
-
-        var p4 = new PeerConnection({'dstId':Id.hash("client4")}, peer);
-        setTimeout(function() {
-            var tick = new Date().getTime();
-
-            var pong = (function(d){
-                console.log("4 Ping completed %d", new Date().getTime() - tick);
-                tick = new Date().getTime();
-                //p4.ping().then(pong);
-            });
-
-            p4.ping("blub").then(pong);
-        }, 1000);
-
-        var p5 = new PeerConnection({'dstId':Id.hash("client5")}, peer);
-        setTimeout(function() {
-            var tick = new Date().getTime();
-
-            var pong = (function(d){
-                console.log("5 Ping completed %d", new Date().getTime() - tick);
-                tick = new Date().getTime();
-                //p5.ping().then(pong);
-            });
-
-            p5.ping("blub").then(pong);
-        }, 1000);
-        var msg = uuid.v4();
-
-        /*for(var i=2;i<=10;i++) {
-            var p = new PeerConnection({'dstId':Id.hash("client" + i.toString())}, peer);
-            p.send({'destination': 'client' + i.toString(), 'msg': msg});
-        }*/
 
     }
 });
@@ -120,3 +81,33 @@ peer.events.on('new-peerconnection', function(peerconnection){
 
 peer.register(myPeerId);
 
+function doPing(id){
+    var p = peer.peerConnection(id);
+    var tick = new Date().getTime();
+
+    var pong = (function(d) {
+        var time = new Date().getTime() - tick;
+        console.log("Ping completed %d", time);
+        return time;
+    });
+    return p.ping("").then(pong);
+}
+
+function doDirectConnect(id){
+    var p = peer.peerConnection(id);
+    return p.directConnect();
+}
+
+function discoverRandomPeer(){
+    return peer.getResourcePeers().then(function(peers){
+        if(peers.length == 0){
+            return null;
+        } else {
+            if(peers[0] === myPeerId){
+                console.log("MYPEERID");
+                exit(0);
+            }
+            return peers[0];
+        }
+    });
+}

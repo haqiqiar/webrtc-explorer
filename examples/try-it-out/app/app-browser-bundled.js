@@ -27,74 +27,26 @@ peer.events.on('registered', function(data) {
 peer.events.on('ready', function() {
     console.log('READY: ready to send messages');
 
-    if(myPeerId === 'client1'){
-        var p2 = peer.peerConnection(Id.hash("client2"));
-        var doDirectConnect = true;
-        setTimeout(function() {
-            var tick = new Date().getTime();
+    setTimeout(function(){
 
-            var pong = (function(d) {
-                console.log("2 Ping completed %d %s", new Date().getTime() - tick, doDirectConnect);
-                tick = new Date().getTime();
+        var dhtTime;
+        var directTime;
+        var peerId;
+        discoverRandomPeer()
+            .then(function(p){peerId = p; return p;})
+            .then(doPing)
+            .then(function (t){dhtTime = t; return peerId;})
+            .then(doDirectConnect)
+            .then(function(c){return doPing(peerId);})
+            .then(function(t){
+                directTime = t;
 
-                    p2.directConnect().then(function () {
-                        doDirectConnect = false;
-                        console.log("Direct connection established");
-                        tick = new Date().getTime();
-                        p2.ping("blub").then(pong);
-                    });
-                //p2.ping().then(pong);
+                console.log("DHT/Direct ping time %d/%d", dhtTime, directTime);
             });
+        //doPing(Id.hash("client2")).then(function(){
 
-            p2.ping("blub").then(pong);
-        }, 1000);
-
-        /*var p3 = new PeerConnection({'dstId':Id.hash("client3")}, peer);
-        setTimeout(function() {
-            var tick = new Date().getTime();
-
-            var pong = (function(d){
-                console.log("3 Ping completed %d", new Date().getTime() - tick);
-                tick = new Date().getTime();
-                //p3.ping().then(pong);
-            });
-
-            p3.ping("blub").then(pong);
-        }, 1000);
-
-        var p4 = new PeerConnection({'dstId':Id.hash("client4")}, peer);
-        setTimeout(function() {
-            var tick = new Date().getTime();
-
-            var pong = (function(d){
-                console.log("4 Ping completed %d", new Date().getTime() - tick);
-                tick = new Date().getTime();
-                //p4.ping().then(pong);
-            });
-
-            p4.ping("blub").then(pong);
-        }, 1000);
-
-        var p5 = new PeerConnection({'dstId':Id.hash("client5")}, peer);
-        setTimeout(function() {
-            var tick = new Date().getTime();
-
-            var pong = (function(d){
-                console.log("5 Ping completed %d", new Date().getTime() - tick);
-                tick = new Date().getTime();
-                //p5.ping().then(pong);
-            });
-
-            p5.ping("blub").then(pong);
-        }, 1000);
-        var msg = uuid.v4();
-
-        /*for(var i=2;i<=10;i++) {
-            var p = new PeerConnection({'dstId':Id.hash("client" + i.toString())}, peer);
-            p.send({'destination': 'client' + i.toString(), 'msg': msg});
-        }*/
-
-    }
+        //});
+    }, 1000);
 });
 
 peer.events.on('message', function(envelope) {
@@ -114,7 +66,32 @@ peer.events.on('new-peerconnection', function(peerconnection){
 
 peer.register(myPeerId);
 
+function doPing(id){
+    var p = peer.peerConnection(id);
+    var tick = new Date().getTime();
 
+    var pong = (function(d) {
+        var time = new Date().getTime() - tick;
+        console.log("Ping completed %d", time);
+        return time;
+    });
+    return p.ping("").then(pong);
+}
+
+function doDirectConnect(id){
+    var p = peer.peerConnection(id);
+    return p.directConnect();
+}
+
+function discoverRandomPeer(){
+    return peer.getResourcePeers().then(function(peers){
+        if(peers.length == 0){
+            return null;
+        } else {
+            return peers[0];
+        }
+    });
+}
 },{"./../../../src/explorer.js":70,"./../../../src/peer-connection.js":75,"dht-id":3,"uuid":69}],2:[function(require,module,exports){
 (function (process){
 "use strict";
@@ -3415,6 +3392,7 @@ Peer.prototype.address = function () {
 }
 
 Peer.prototype.signal = function (data) {
+
   var self = this
   if (self.destroyed) throw new Error('cannot signal after peer is destroyed')
   if (typeof data === 'string') {
@@ -11652,6 +11630,7 @@ function ChannelManager(peerId, ioc, router, config) {
         if(channel.destroyed){
             console.log("Ignoring signal for already destroyed channel");
         } else {
+            console.log(data.offer.signal);
             channel.signal(data.offer.signal);
         }
     });
@@ -11959,6 +11938,7 @@ function PeerConnection(config, peer) {
 
 
     function directChannel_onData(data) {
+        console.log("Direct channel data: %s", JSON.stringify(data));
         messageHandler({srcId: self.config.dstId, data: data});
     }
 
@@ -11983,9 +11963,11 @@ function PeerConnection(config, peer) {
 
                 self.pendingChannel.on('data', directChannel_onData);
             }
+            //console.log("SETTING OFFER");
             self.pendingChannel.signal(envelope.data.data);
 
         } else if ('sysmsg' in envelope.data && envelope.data.sysmsg === 'answer') {
+            //console.log("SETTING ANSWER");
             self.pendingChannel.signal(envelope.data.data);
 
         } else if ('sysmsg' in envelope.data && envelope.data.sysmsg in sysmsgHandlers && sysmsgHandlers[envelope.data.sysmsg].length > 0) {
@@ -12003,6 +11985,7 @@ function PeerConnection(config, peer) {
 var ee2 = require('eventemitter2').EventEmitter2;
 var io = require('socket.io-client');
 var Id = require('dht-id');
+var Q = require('q');
 var FingerTable = require('./finger-table.js');
 var ChannelManager = require('./channel-manager.js');
 var PeerConnection = require('./peer-connection.js');
@@ -12083,7 +12066,6 @@ function Peer(config) {
                 //Send the ready event for the first 'fingerUpdate' event
                 readyEventSent = true;
                 self.events.emit('ready', {});
-                ioc.emit('client-finger-update', self.fingerTable.getTable());
             });
             self.events.emit('registered', {peerId: data.peerId});
         }
@@ -12094,6 +12076,17 @@ function Peer(config) {
     self.updateResourceProviderState = function(enable){
       ioc.emit('update-resource-state', {'provideResources' : enable});
     };
+
+    self.getResourcePeers = function(){
+        var deferred = Q.defer();
+
+        ioc.emit('get-resource-peers', null, function(peers){
+            deferred.resolve(peers);
+        });
+
+        return deferred.promise;
+    };
+
 
     self.send = function(dstId, data) {
         var envelope = {
@@ -12135,7 +12128,7 @@ function Peer(config) {
 
 }
 
-},{"./channel-manager.js":71,"./finger-table.js":72,"./peer-connection.js":73,"dht-id":3,"eventemitter2":4,"node-localstorage":5,"socket.io-client":18}],75:[function(require,module,exports){
+},{"./channel-manager.js":71,"./finger-table.js":72,"./peer-connection.js":73,"dht-id":3,"eventemitter2":4,"node-localstorage":5,"q":6,"socket.io-client":18}],75:[function(require,module,exports){
 module.exports = require('./lib/peer-connection.js');
 
 },{"./lib/peer-connection.js":73}],76:[function(require,module,exports){

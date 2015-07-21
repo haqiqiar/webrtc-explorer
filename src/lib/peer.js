@@ -1,6 +1,7 @@
 var ee2 = require('eventemitter2').EventEmitter2;
 var io = require('socket.io-client');
 var Id = require('dht-id');
+var Q = require('q');
 var FingerTable = require('./finger-table.js');
 var ChannelManager = require('./channel-manager.js');
 var PeerConnection = require('./peer-connection.js');
@@ -81,7 +82,6 @@ function Peer(config) {
                 //Send the ready event for the first 'fingerUpdate' event
                 readyEventSent = true;
                 self.events.emit('ready', {});
-                ioc.emit('client-finger-update', self.fingerTable.getTable());
             });
             self.events.emit('registered', {peerId: data.peerId});
         }
@@ -92,6 +92,17 @@ function Peer(config) {
     self.updateResourceProviderState = function(enable){
       ioc.emit('update-resource-state', {'provideResources' : enable});
     };
+
+    self.getResourcePeers = function(){
+        var deferred = Q.defer();
+
+        ioc.emit('get-resource-peers', null, function(peers){
+            deferred.resolve(peers);
+        });
+
+        return deferred.promise;
+    };
+
 
     self.send = function(dstId, data) {
         var envelope = {

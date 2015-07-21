@@ -108,6 +108,7 @@ function PeerConnection(config, peer) {
 
 
     function directChannel_onData(data) {
+        console.log("Direct channel data: %s", JSON.stringify(data));
         messageHandler({srcId: self.config.dstId, data: data});
     }
 
@@ -132,9 +133,11 @@ function PeerConnection(config, peer) {
 
                 self.pendingChannel.on('data', directChannel_onData);
             }
+            //console.log("SETTING OFFER");
             self.pendingChannel.signal(envelope.data.data);
 
         } else if ('sysmsg' in envelope.data && envelope.data.sysmsg === 'answer') {
+            //console.log("SETTING ANSWER");
             self.pendingChannel.signal(envelope.data.data);
 
         } else if ('sysmsg' in envelope.data && envelope.data.sysmsg in sysmsgHandlers && sysmsgHandlers[envelope.data.sysmsg].length > 0) {

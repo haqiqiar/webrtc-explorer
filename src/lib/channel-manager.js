@@ -92,6 +92,7 @@ function ChannelManager(peerId, ioc, router, config) {
         if(channel.destroyed){
             console.log("Ignoring signal for already destroyed channel");
         } else {
+            console.log(data.offer.signal);
             channel.signal(data.offer.signal);
         }
     });
