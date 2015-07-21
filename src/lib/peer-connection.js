@@ -1,7 +1,6 @@
 var ee2 = require('eventemitter2').EventEmitter2;
 var Q = require('q');
 var SimplePeer = require('simple-peer');
-var wrtc = require('wrtc');
 
 
 exports = module.exports = PeerConnection;
@@ -75,7 +74,7 @@ function PeerConnection(config, peer) {
 
         delete self.directChannel;
 
-        self.pendingChannel = new SimplePeer({initiator: true, wrtc: wrtc});
+        self.pendingChannel = new SimplePeer({initiator: true, wrtc: self.config.wrtc});
 
         self.pendingChannel.on('signal', function (signal) {
             console.log('direct offer: ', JSON.stringify(signal));
@@ -119,7 +118,7 @@ function PeerConnection(config, peer) {
             self.send({'sysmsg': 'pong'});
         } else if ('sysmsg' in envelope.data && envelope.data.sysmsg === 'offer') {
             if (!self.pendingChannel) {
-                self.pendingChannel = new SimplePeer({initiator: false, wrtc: wrtc});
+                self.pendingChannel = new SimplePeer({initiator: false, wrtc: self.config.wrtc});
 
                 self.pendingChannel.on('connect', function () {
                     console.log('direct channel ready');

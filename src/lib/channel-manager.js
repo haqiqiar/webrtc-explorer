@@ -1,12 +1,11 @@
 var SimplePeer = require('simple-peer');
-var wrtc = require('wrtc');
 
 exports = module.exports = ChannelManager;
 
 
 var _pendingConnections = {};
 
-function ChannelManager(peerId, ioc, router) {
+function ChannelManager(peerId, ioc, router, config) {
     var self = this;
 
     /// establish a connection to another peer
@@ -17,7 +16,7 @@ function ChannelManager(peerId, ioc, router) {
         var intentId = (~~(Math.random() * 1e9))
                         .toString(36) + Date.now();
 
-        var channel = new SimplePeer({initiator: true, wrtc: wrtc});
+        var channel = new SimplePeer({initiator: true, wrtc: config.wrtc});
 
         channel.on('signal', function (signal) {
             console.log('sendOffer %s', JSON.stringify(signal));
@@ -71,7 +70,7 @@ function ChannelManager(peerId, ioc, router) {
         }
 
         if(!(data.offer.srcId in _pendingConnections)){
-            channel = new SimplePeer({wrtc: wrtc});
+            channel = new SimplePeer({wrtc: config.wrtc});
             channel.on('connect', function() {
                 console.log('channel ready to listen');
                 channel.on('data', router);
