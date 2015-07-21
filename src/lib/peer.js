@@ -54,6 +54,13 @@ function Peer(config) {
         console.log('socket.io connection established');
     }
 
+    self.peerConnection = function(dstId){
+      if(!(dstId in peerconnections)){
+          peerconnections[dstId] = new PeerConnection({dstId: dstId}, self);
+      }
+
+      return peerconnections[dstId];
+    };
     /// module api
 
     self.register = function(peerId) {
