@@ -39,6 +39,8 @@ function ChannelManager(peerId, ioc, router) {
             cb(null, channel);
         });
 
+
+
         var listener = ioc.on('c-offer-accepted', offerAccepted);
 
         function offerAccepted(data) {
@@ -49,8 +51,11 @@ function ChannelManager(peerId, ioc, router) {
             }
             console.log('offerAccepted: %s', JSON.stringify(data.offer.signal));
 
-            channel.signal(data.offer.signal);
-
+            if(channel.destroyed){
+                console.log("Ignoring signal for already destroyed channel");
+            } else {
+                channel.signal(data.offer.signal);
+            }
 
         }
     };
@@ -61,6 +66,10 @@ function ChannelManager(peerId, ioc, router) {
         console.log('acceptOffer: %s', JSON.stringify(data));
 
         var channel;
+        if(data.offer.signal && data.offer.signal.type === 'offer'){
+            delete _pendingConnections[data.offer.srcId];
+        }
+
         if(!(data.offer.srcId in _pendingConnections)){
             channel = new SimplePeer({wrtc: wrtc});
             channel.on('connect', function() {
@@ -74,12 +83,18 @@ function ChannelManager(peerId, ioc, router) {
                 ioc.emit('s-offer-accepted', data);
             });
 
+
+
             _pendingConnections[data.offer.srcId] = channel;
         } else {
             channel = _pendingConnections[data.offer.srcId];
         }
 
-        channel.signal(data.offer.signal);
+        if(channel.destroyed){
+            console.log("Ignoring signal for already destroyed channel");
+        } else {
+            channel.signal(data.offer.signal);
+        }
     });
 
 }

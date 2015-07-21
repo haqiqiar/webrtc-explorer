@@ -32,19 +32,21 @@ function Peer(config) {
     var ioc = io(config.signalingURL + '/');
 
     ioc.once('connect', connected);
-    ioc.on('c-finger-update', function(data) {
+    ioc.on('c-finger-update', function(data, cb) {
         if (!self.fingerTable) {
             console.log('DEBUG: got a finger-update before finger table was ready');
         }
 
         self.fingerTable.fingerUpdate(data);
+        cb(true);
     });
 
-    ioc.on('c-predecessor', function(data) {
+    ioc.on('c-predecessor', function(data, cb) {
         if (!self.fingerTable) {
             console.log('DEBUG: got a predecessor before finger table was ready');
         }
         self.fingerTable.predecessorUpdate(data);
+        cb(true);
     });
 
 
@@ -71,6 +73,7 @@ function Peer(config) {
                 //Send the ready event for the first 'fingerUpdate' event
                 readyEventSent = true;
                 self.events.emit('ready', {});
+                ioc.emit('client-finger-update', self.fingerTable.getTable());
             });
             self.events.emit('registered', {peerId: data.peerId});
         }
@@ -98,18 +101,25 @@ function Peer(config) {
         var nextHop = self.fingerTable.bestCandidate(envelope.dstId);
         console.log('nextHop:', nextHop, envelope);
         if (nextHop === self.peerId.toHex() && envelope.dstId === self.peerId.toHex()) {
-            self.events.emit('message', envelope);
             if(config.createPeerConnections){
                 if(!(envelope.srcId in peerconnections)){
                     peerconnections[envelope.srcId] = new PeerConnection({dstId: envelope.srcId}, self);
                     self.events.emit('new-peerconnection', peerconnections[envelope.srcId]);
                 }
-                peerconnections[envelope.srcId].events.emit('message', envelope);
+                self.events.emit('message', envelope);
+                //peerconnections[envelope.srcId].events.emit('message', envelope);
             }
         } else if (nextHop === self.peerId.toHex()){
             return self.events.emit('message-non-routable', envelope);
         } else {
-            self.fingerTable.channelTo(nextHop).send(envelope);
+            if(!('path' in envelope)){
+                envelope.path = [];
+            }
+            envelope.path.push(nextHop);
+            self.fingerTable.channelTo(nextHop).then(
+                function(channel){
+                    channel.send(envelope);
+                });
         }
     }
 

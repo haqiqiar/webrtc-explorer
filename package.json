@@ -36,7 +36,8 @@
     "socket.io-client": "^1.1.0",
     "node-localstorage": "^0.5.1",
     "wrtc": "^0.0.56",
-    "uuid": "^2.0.1"
+    "uuid": "^2.0.1",
+    "q" : "^1.4.1"
   },
   "devDependencies": {
     "code": "^1.2.1",
