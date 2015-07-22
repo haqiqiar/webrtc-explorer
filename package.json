@@ -37,7 +37,8 @@
     "node-localstorage": "latest",
     "wrtc": "latest",
     "uuid": "latest",
-    "q" : "latest"
+    "q" : "latest",
+    "node-forge" : "latest"
   },
   "devDependencies": {
     "code": "^1.2.1",

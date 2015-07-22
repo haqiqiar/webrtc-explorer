@@ -2,26 +2,40 @@ var Explorer = require('./../../../src/explorer.js');
 var uuid = require('uuid');
 var Id = require('dht-id');
 var wrtc = require('wrtc');
+fs = require('fs');
 
 
 console.log('start');
+
+
+var myPeerId = uuid.v4();
+
+if(process.argv.length > 2) {
+    myPeerId = process.argv[2];
+}
+
+var p12 = undefined;
+
+try {
+    var content = fs.readFileSync('/home/areiter/' + myPeerId + '.p12');
+    p12 = content.toString('base64');
+} catch(err){
+
+}
+
 
 var config = {
     signalingURL: 'http://localhost:9000',
     logging: true,
     createPeerConnections: true,
     fingerTableRefreshmentInterval: 10000,
-    wrtc: wrtc
+    wrtc: wrtc,
+    p12: p12,
+    p12password: 'test'
 };
 
-var idBase = "client";
-
 var peer = new Explorer(config);
-var myPeerId = uuid.v4();
 
-if(process.argv.length > 2) {
-    myPeerId = process.argv[2];
-}
 
 peerGlobal = peer;
 
@@ -30,32 +44,37 @@ peer.events.on('registered', function(data) {
     peer.updateResourceProviderState(true);
 });
 
+
+
+
 peer.events.on('ready', function() {
     console.log('READY: ready to send messages');
 
-    if(myPeerId.indexOf('client') === 0){
+    //if(myPeerId.indexOf('client') === 0){
+    if(myPeerId === 'client1'){
         setTimeout(function(){
 
             var dhtTime;
             var directTime;
             var peerId;
             discoverRandomPeer()
-                .then(function(p){peerId = p; return p;})
-                .then(doPing)
-                .then(function (t){dhtTime = t; return peerId;})
-                .then(doDirectConnect)
-                .then(function(c){return doPing(peerId);})
-                .then(function(t){
-                    directTime = t;
+                .then(function(p){peerId = Id.hash("client2"); return peerId;})
+                .then(doAuthenticateConnection);
+                //.then(doPing)
+                //.then(function (t){dhtTime = t; return peerId;})
+                //.then(doDirectConnect)
+                //.then(function(c){return doPing(peerId);})
+                //.then(function(t){
+                //    directTime = t;
 
-                    console.log("DHT/Direct ping time %d/%d", dhtTime, directTime);
-                })
-                .then(function(c){return doPing(peerId);})
-                .then(function(t){
-                    directTime = t;
+                //    console.log("DHT/Direct ping time %d/%d", dhtTime, directTime);
+                //})
+                //.then(function(c){return doPing(peerId);})
+                //.then(function(t){
+                //    directTime = t;
 
-                    console.log("DHT/Direct ping time %d/%d", dhtTime, directTime);
-                });
+                //    console.log("DHT/Direct ping time %d/%d", dhtTime, directTime);
+                //});
             //doPing(Id.hash("client2")).then(function(){
 
             //});
@@ -80,6 +99,11 @@ peer.events.on('new-peerconnection', function(peerconnection){
 });
 
 peer.register(myPeerId);
+
+function doAuthenticateConnection(id){
+    var p = peer.peerConnection(id);
+    p.authenticateConnection();
+}
 
 function doPing(id){
     var p = peer.peerConnection(id);

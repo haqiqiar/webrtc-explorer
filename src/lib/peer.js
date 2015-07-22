@@ -19,6 +19,15 @@ exports = module.exports = Peer;
 //     createPeerConnections: defaults to false
 // }
 function Peer(config) {
+
+    if(!("p12" in config)){
+        config.p12 = null;
+    }
+    if(!("p12password" in config)){
+        config.p12password = null;
+    }
+
+
     localStorage.debug = config.logging || false;
     var self = this;
 
@@ -57,7 +66,7 @@ function Peer(config) {
 
     self.peerConnection = function(dstId){
       if(!(dstId in peerconnections)){
-          peerconnections[dstId] = new PeerConnection({dstId: dstId, wrtc: config.wrtc}, self);
+          peerconnections[dstId] = new PeerConnection({dstId: dstId, wrtc: config.wrtc, p12: config.p12, p12password: config.p12password}, self);
       }
 
       return peerconnections[dstId];
@@ -122,7 +131,7 @@ function Peer(config) {
         if (nextHop === self.peerId.toHex() && envelope.dstId === self.peerId.toHex()) {
             if(config.createPeerConnections){
                 if(!(envelope.srcId in peerconnections)){
-                    peerconnections[envelope.srcId] = new PeerConnection({dstId: envelope.srcId, wrtc: config.wrtc}, self);
+                    peerconnections[envelope.srcId] = new PeerConnection({dstId: envelope.srcId, wrtc: config.wrtc, p12: config.p12, p12password: config.p12password}, self);
                     self.events.emit('new-peerconnection', peerconnections[envelope.srcId]);
                 }
                 self.events.emit('message', envelope);
