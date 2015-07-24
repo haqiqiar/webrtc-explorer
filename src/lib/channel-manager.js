@@ -29,7 +29,7 @@ function ChannelManager(peerId, ioc, router, config) {
         });
 
         channel.on('connect', function() {
-            delete _pendingConnections[dstId];
+            //delete _pendingConnections[dstId];
             console.log('channel ready to send');
             channel.on('data', function(){
                 console.log('DEBUG: this channel should be '+
@@ -73,6 +73,7 @@ function ChannelManager(peerId, ioc, router, config) {
             channel = new SimplePeer({wrtc: config.wrtc});
             channel.on('connect', function() {
                 console.log('channel ready to listen');
+                delete _pendingConnections[data.offer.srcId];
                 channel.on('data', router);
             });
 
