@@ -13,6 +13,8 @@ if (typeof localStorage === "undefined" || localStorage === null) {
 
 exports = module.exports = Peer;
 
+
+
 // config: {
 //     signalingURL: <IP or Host of webrtc-ring-signaling-server>
 //     logging: defaults to false,
@@ -127,7 +129,7 @@ function Peer(config) {
 
     function router(envelope) {
         var nextHop = self.fingerTable.bestCandidate(envelope.dstId);
-        console.log('nextHop:', nextHop, envelope);
+        //console.log('nextHop:', nextHop, envelope);
         if (nextHop === self.peerId.toHex() && envelope.dstId === self.peerId.toHex()) {
             if(config.createPeerConnections){
                 if(!(envelope.srcId in peerconnections)){
@@ -152,3 +154,5 @@ function Peer(config) {
     }
 
 }
+
+

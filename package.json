@@ -38,7 +38,8 @@
     "wrtc": "latest",
     "uuid": "latest",
     "q" : "latest",
-    "node-forge" : "latest"
+    "node-forge" : "latest",
+    "segfault-handler" : "latest"
   },
   "devDependencies": {
     "code": "^1.2.1",

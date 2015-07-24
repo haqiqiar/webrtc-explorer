@@ -15,11 +15,25 @@ function FingerTable (peerId, events, channelManager) {
 
     var predecessorId;
     var table = {};
+
     // rowIndex: {fingerId: , channel:}
     var ready = false;
 
     self.getTable = function(){
         return table;
+    };
+
+    self.getBufferedAmount = function(id) {
+        var bufferSize = 0;
+        Object.keys(table).some(function(k){
+            if (table[k].fingerId === id && table[k].channel) {
+                bufferSize = table[k].channel.bufferSize;
+                return true;
+            }
+            return false;
+        });
+
+        return bufferSize;
     };
 
     self.predecessorUpdate = function(data) {
@@ -174,6 +188,7 @@ function FingerTable (peerId, events, channelManager) {
                         channelManager.connect(table[rowIndex].fingerId, function (err, channel) {
                             console.log('updating finger table row channel: ', rowIndex, table[rowIndex].fingerId);
                             table[rowIndex].channel = channel;
+
                         });
                     } else {
                         deferred.resolve(channel);

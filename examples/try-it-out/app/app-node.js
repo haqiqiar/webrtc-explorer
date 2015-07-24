@@ -5,6 +5,11 @@ var wrtc = require('wrtc');
 fs = require('fs');
 
 
+//var SegfaultHandler = require('segfault-handler');
+
+//SegfaultHandler.registerHandler();
+
+
 console.log('start');
 
 
@@ -59,8 +64,13 @@ peer.events.on('ready', function() {
             var peerId;
             discoverRandomPeer()
                 .then(function(p){peerId = Id.hash("client2"); return peerId;})
-                .then(doAuthenticateConnection);
-                //.then(doPing)
+                .then(doAuthenticateConnection)
+                .then(function(){
+                    var p = peer.peerConnection(peerId);
+                    console.log(p.remoteCertificate);
+                });
+                //.then(doSendData);
+                //.then(doPing);
                 //.then(function (t){dhtTime = t; return peerId;})
                 //.then(doDirectConnect)
                 //.then(function(c){return doPing(peerId);})
@@ -78,7 +88,7 @@ peer.events.on('ready', function() {
             //doPing(Id.hash("client2")).then(function(){
 
             //});
-        }, 1000);
+        }, 2000);
 
     }
 });
@@ -102,7 +112,11 @@ peer.register(myPeerId);
 
 function doAuthenticateConnection(id){
     var p = peer.peerConnection(id);
-    p.authenticateConnection();
+    return p.authenticateConnection(function(myp){
+        console.log("Disconnected");
+    }, function(myp, error){
+        console.log("Error: ", error);
+    });
 }
 
 function doPing(id){
@@ -115,6 +129,15 @@ function doPing(id){
         return time;
     });
     return p.ping("").then(pong);
+}
+
+function doSendData(id){
+    var data = "";
+    for(var i = 0; i<50; i++)
+        data += Math.random().toString(36).substr(2,10);
+
+    var p = peer.peerConnection(id);
+    p.send({data:data});
 }
 
 function doDirectConnect(id){

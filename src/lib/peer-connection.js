@@ -27,7 +27,11 @@ function PeerConnection(config, peer) {
         maxListeners: 20
     });
 
+    var currentlySending = false;
+    var sendQueue = [];
+
     var sysmsgHandlers = {};
+    var currentCData = [];
 
     var tlsKey = null;
     var tlsCert = null;
@@ -38,19 +42,73 @@ function PeerConnection(config, peer) {
         var p12 = forge.pkcs12.pkcs12FromAsn1(p12Asn1, self.config.p12password);
         tlsCert = forge.pki.certificateToPem(p12.getBags({bagType: forge.pki.oids.certBag})[forge.pki.oids.certBag][0].cert);
         var keybag = p12.getBags({bagType: forge.pki.oids.pkcs8ShroudedKeyBag})[forge.pki.oids.pkcs8ShroudedKeyBag][0];
-        tlsKey = keybag.key;
+        tlsKey = forge.pki.privateKeyToPem(keybag.key);
     }
 
     self.send = function (data) {
+        var strData = JSON.stringify(data);
+        console.log("Sending: ", strData);
+        var i;
+        var msgArray = [];
+
+        if (strData.length > 200) {
+            for (i = 0; i < strData.length / 200; i++) {
+                msgArray.push(strData.substr(i * 200, 200));
+            }
+
+            //var r = strData.length - 200 * Math.floor(strData.length / 200);
+            //if (r > 0)
+            //    msgArray.push(strData.substr(200 * Math.floor(strData.length / 200), r));
+        }
+
         if (self.directChannel && self.directChannel.destroyed) {
             self.directChannel = null;
         }
 
-        if (self.directChannel) {
-            self.directChannel.send(JSON.stringify(data));
+
+        if (msgArray.length === 0) {
+            var isAck = true;
+
+            //HACK: bad hack, as buffered amount on webrtc implementation does not seem to work.
+            //Acknowledge all packets, before sending next one. Can be removed , when bufferedamount is working correctly
+            //Acknowledge id was left 0 by intention, as we anyhow have a reliable connection
+            if('sysmsg' in data && data.sysmsg !== 'ack') {
+                isAck = true;
+                data.ack = 0;
+            }
+
+            if (currentlySending && !isAck) {
+                sendQueue.push(data)
+            } else if (self.directChannel) {
+                currentlySending = !isAck;
+                self.directChannel.send(JSON.stringify(data));
+            } else {
+                currentlySending = !isAck;
+                dhtSend(data);
+            }
         } else {
-            dhtSend(data);
+            for(i=0; i<msgArray.length; i++) {
+                var toSend = {
+                    sysmsg: 'cdata',
+                    ack: 0,
+                    c: i+1,
+                    cs: msgArray.length,
+                    data: msgArray[i]
+                };
+
+                if (currentlySending) {
+                    sendQueue.push(toSend)
+                } else if (self.directChannel) {
+                    currentlySending = true;
+                    self.directChannel.send(JSON.stringify(toSend));
+                } else {
+                    currentlySending = true;
+                    dhtSend(toSend);
+                }
+            }
         }
+
+
     };
 
 
@@ -119,24 +177,30 @@ function PeerConnection(config, peer) {
     /* Requests a TLS encrypted connection from the other peer.
      * The other peer is the server, client certificates are not supported at the moment
      */
-    self.authenticateConnection = function(){
+    self.authenticateConnection = function(cbClosed, cbError){
         var deferred = Q.defer();
 
         self.send({sysmsg : 'initiate-tls'});
 
         self.tls = forge.tls.createConnection({
-            disableChainVerification: true,
             server: false,
             sessionCache: {},
             cipherSuites: [forge.tls.CipherSuites.TLS_RSA_WITH_AES_256_CBC_SHA],
             verify: function(connection, verified, depth, certs) {
-                return verified;
+                if(verified !== forge.pki.certificateError.unknown_ca){
+                    return verified;
+                }
+
+                self.remoteCertificate = certs[0];
+                return true;
             },
             connected: function(connection) {
-                console.log('connected');
+                deferred.resolve();
             },
             tlsDataReady: function(connection) {
-                self.send({sysmsg: 'tls-data', data: new Buffer(connection.tlsData.bytes(connection.tlsData.length())).toString("base64")});
+                var d = connection.tlsData.getBytes();
+                var db64 = new Buffer(d).toString("base64");
+                self.send({sysmsg: 'tls-data', data: db64});
             },
             dataReady: function(connection) {
                 self.events.emit('message', {srcId: self.config.dstId, data: JSON.parse(connection.data.toString())});
@@ -151,15 +215,13 @@ function PeerConnection(config, peer) {
              payload.getBytes();
              },*/
             closed: function(connection) {
-                console.log('disconnected');
+                cbClosed(this);
             },
             error: function(connection, error) {
-                console.log('uh oh', error);
+                cbError(this, error);
             }
         });
-
         self.tls.handshake();
-
         return deferred.promise;
     };
 
@@ -179,7 +241,35 @@ function PeerConnection(config, peer) {
     function messageHandler(envelope) {
         if (envelope.srcId !== self.config.dstId) return;
 
-        if ('sysmsg' in envelope.data && envelope.data.sysmsg === 'ping') {
+        var writeToLog = true;
+        if ('sysmsg' in envelope.data && envelope.data.sysmsg === 'cdata'){
+            writeToLog = false;
+        } else if ('sysmsg' in envelope.data && envelope.data.sysmsg === 'ack'){
+            writeToLog = false;
+        }
+
+        if(writeToLog) {
+            console.log("MessageHandler: ", envelope.data);
+        }
+
+        if('ack' in envelope.data){
+            self.send({sysmsg : 'ack', id: envelope.data.ack});
+        }
+
+        if('sysmsg' in envelope.data && envelope.data.sysmsg === 'ack') {
+            if(sendQueue.length > 0){
+                var toSend = sendQueue.shift();
+                if (self.directChannel) {
+                    currentlySending = true;
+                    self.directChannel.send(JSON.stringify(toSend));
+                } else {
+                    currentlySending = true;
+                    dhtSend(toSend);
+                }
+            } else {
+                currentlySending = false;
+            }
+        }else if ('sysmsg' in envelope.data && envelope.data.sysmsg === 'ping') {
             self.send({'sysmsg': 'pong'});
         } else if ('sysmsg' in envelope.data && envelope.data.sysmsg === 'offer') {
             if (!self.pendingChannel) {
@@ -215,7 +305,6 @@ function PeerConnection(config, peer) {
             }
 
             self.tls = forge.tls.createConnection({
-                disableChainVerification: true,
                 server: true,
                 sessionCache: {},
                 cipherSuites: [forge.tls.CipherSuites.TLS_RSA_WITH_AES_256_CBC_SHA],
@@ -233,7 +322,9 @@ function PeerConnection(config, peer) {
                     return tlsKey;
                 },
                 tlsDataReady: function(connection) {
-                    self.send({sysmsg: 'tls-data', data: new Buffer(connection.tlsData.bytes(connection.tlsData.length())).toString("base64")});
+                    var d = connection.tlsData.getBytes();
+                    var db64 = new Buffer(d).toString("base64");
+                    self.send({sysmsg: 'tls-data', data: db64});
                 },
                 dataReady: function(connection) {
                     self.events.emit('message', {srcId: self.config.dstId, data: JSON.parse(connection.data.toString())});
@@ -258,7 +349,22 @@ function PeerConnection(config, peer) {
         } else if ('sysmsg' in envelope.data && envelope.data.sysmsg === 'tls-data') {
             if(self.tls){
                 self.tls.process(new Buffer(envelope.data.data, "base64"));
+            } else {
+                console.log("TLS NOT INITIALIZED");
             }
+        } else if ('sysmsg' in envelope.data && envelope.data.sysmsg === 'cdata') {
+            if(envelope.data.c == 1){
+                currentCData = [];
+            }
+
+            currentCData.push(envelope.data.data);
+
+            if(envelope.data.c === envelope.data.cs){
+                var d = currentCData.join('');
+                currentCData = [];
+                messageHandler({srcId: self.config.dstId, data: JSON.parse(d)});
+            }
+
         } else {
             self.events.emit('message', envelope);
         }
