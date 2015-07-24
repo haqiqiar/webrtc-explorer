@@ -64,6 +64,10 @@ peer.events.on('ready', function() {
             var peerId;
             discoverRandomPeer()
                 .then(function(p){peerId = Id.hash("client2"); return peerId;})
+                .then(doDirectConnect)
+                .then(function(){return peerId;})
+                .then(doPing)
+                .then(function(){return peerId;})
                 .then(doAuthenticateConnection)
                 .then(function(){
                     var p = peer.peerConnection(peerId);

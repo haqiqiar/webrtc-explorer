@@ -45,7 +45,7 @@ function PeerConnection(config, peer) {
         tlsKey = forge.pki.privateKeyToPem(keybag.key);
     }
 
-    self.send = function (data) {
+    self.send = function (data, forceDht) {
         var strData = JSON.stringify(data);
         console.log("Sending: ", strData);
         var i;
@@ -73,7 +73,7 @@ function PeerConnection(config, peer) {
             //Acknowledge all packets, before sending next one. Can be removed , when bufferedamount is working correctly
             //Acknowledge id was left 0 by intention, as we anyhow have a reliable connection
             if('sysmsg' in data && data.sysmsg !== 'ack') {
-                isAck = true;
+                isAck = false;
                 data.ack = 0;
             }
 
