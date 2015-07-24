@@ -47,7 +47,7 @@ function FingerTable (peerId, events, channelManager) {
         // 3. Once connected, update the finger tableA
 
         if (table[data.rowIndex] &&
-                table[data.rowIndex].fingerId === data.fingerId) {
+                table[data.rowIndex].fingerId === data.fingerId && !table[data.rowIndex].destroyed) {
             console.log('already had establish this channel with: ', data.fingerId);
             return;
         }

@@ -164,6 +164,17 @@ function PeerConnection(config, peer) {
 
         self.pendingChannel.on('data', directChannel_onData);
 
+        self.pendingChannel.on('close', function(){
+            console.log("Direct data channel closed");
+            delete self.directChannel;
+        });
+
+        self.pendingChannel.on('error', function(err){
+            console.log("Direct data channel error: ", err);
+            delete self.directChannel;
+        });
+
+
         return deferred.promise;
     };
 
@@ -286,6 +297,14 @@ function PeerConnection(config, peer) {
                 });
 
                 self.pendingChannel.on('data', directChannel_onData);
+                self.pendingChannel.on('close', function(){
+                    console.log("Direct data channel closed");
+                });
+
+                self.pendingChannel.on('error', function(err){
+                    console.log("Direct data channel error: ", err);
+                });
+
             }
             //console.log("SETTING OFFER");
             self.pendingChannel.signal(envelope.data.data);
