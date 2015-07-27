@@ -70,7 +70,7 @@ function PeerConnection(config, peer) {
             var isAck = true;
 
             //HACK: bad hack, as buffered amount on webrtc implementation does not seem to work.
-            //Acknowledge all packets, before sending next one. Can be removed , when bufferedamount is working correctly
+            //Acknowledge all packets, before sending next one. Can be removed, when bufferedamount is working correctly
             //Acknowledge id was left 0 by intention, as we anyhow have a reliable connection
             if('sysmsg' in data && data.sysmsg !== 'ack') {
                 isAck = false;
@@ -216,15 +216,6 @@ function PeerConnection(config, peer) {
             dataReady: function(connection) {
                 self.events.emit('message', {srcId: self.config.dstId, data: JSON.parse(connection.data.toString())});
             },
-            /* NOTE: experimental
-             heartbeatReceived: function(connection, payload) {
-             // restart retransmission timer, look at payload
-             clearInterval(myHeartbeatTimer);
-             myHeartbeatTimer = setInterval(function() {
-             connection.prepareHeartbeatRequest(forge.util.createBuffer('1234'));
-             }, 5*60*1000);
-             payload.getBytes();
-             },*/
             closed: function(connection) {
                 cbClosed(this);
             },
@@ -348,15 +339,6 @@ function PeerConnection(config, peer) {
                 dataReady: function(connection) {
                     self.events.emit('message', {srcId: self.config.dstId, data: JSON.parse(connection.data.toString())});
                 },
-                /* NOTE: experimental
-                 heartbeatReceived: function(connection, payload) {
-                 // restart retransmission timer, look at payload
-                 clearInterval(myHeartbeatTimer);
-                 myHeartbeatTimer = setInterval(function() {
-                 connection.prepareHeartbeatRequest(forge.util.createBuffer('1234'));
-                 }, 5*60*1000);
-                 payload.getBytes();
-                 },*/
                 closed: function(connection) {
                     console.log('disconnected');
                 },

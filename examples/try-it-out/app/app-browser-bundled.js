@@ -11914,6 +11914,7 @@ function PeerConnection(config, peer) {
         self.pendingChannel.on('connect', function () {
             self.directChannel = self.pendingChannel;
             delete self.pendingChannel;
+            console.log("direct data channel ready");
             deferred.resolve();
         });
 
