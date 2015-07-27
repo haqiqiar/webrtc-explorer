@@ -4,11 +4,7 @@
   "description": "Chord inspired ring DHT algorithm using WebRTC as transport layer for P2P in the browser",
   "main": "src/index.js",
   "scripts": {
-    "codestyle": "./node_modules/.bin/jscs -p google src/index.js tests/*.js",
-    "lint": "./node_modules/.bin/jshint .",
-    "test": "node ./node_modules/.bin/lab -r tap tests/*-test.js | ./node_modules/.bin/tap-spec",
-    "test-cov": "node ./node_modules/.bin/lab -t 80 tests/*-test.js",
-    "test-cov-html": "node ./node_modules/.bin/lab -r html -o coverage.html tests/*-test.js"
+    "minify": "r.js -o minify.js"
   },
   "precommit": [
     "lint"
@@ -39,7 +35,8 @@
     "uuid": "latest",
     "q" : "latest",
     "node-forge" : "latest",
-    "segfault-handler" : "latest"
+    "segfault-handler" : "latest",
+    "requirejs" : "latest"
   },
   "devDependencies": {
     "code": "^1.2.1",
@@ -51,6 +48,7 @@
     "piri-piri": "^0.3.1",
     "piri-piri.client": "^0.3.0",
     "precommit-hook": "^1.0.7",
-    "tap-spec": "^1.0.1"
+    "tap-spec": "^1.0.1",
+    "almond":"latest"
   }
 }

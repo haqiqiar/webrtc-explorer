@@ -227,6 +227,26 @@ function PeerConnection(config, peer) {
         return deferred.promise;
     };
 
+    self.getRemoteCertificateFingerprint = function() {
+        if (typeof self.remoteCertificate === 'undefined')
+            return null;
+
+        var certDer = forge.asn1.toDer(forge.pki.certificateToAsn1(self.remoteCertificate)).getBytes();
+
+        var fingerprint = forge.md.sha1.create();
+        fingerprint.update(certDer);
+        var fingerprint_str = '';
+        for (pos = 0; fingerprint.digest().toHex().length > pos; pos += 2) {
+            fingerprint_str += fingerprint.digest().toHex().charAt(pos) + fingerprint.digest().toHex().charAt(pos + 1);
+            if ((pos + 2) < fingerprint.digest().toHex().length) {
+                fingerprint_str += ':';
+            }
+
+        }
+
+        return fingerprint_str;
+    };
+
     peer.events.on('message', messageHandler);
 
 
@@ -371,4 +391,6 @@ function PeerConnection(config, peer) {
         }
     }
 }
+
+
 

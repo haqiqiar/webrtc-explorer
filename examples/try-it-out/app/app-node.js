@@ -2,16 +2,12 @@ var Explorer = require('./../../../src/explorer.js');
 var uuid = require('uuid');
 var Id = require('dht-id');
 var wrtc = require('wrtc');
+var forge = require('node-forge');
 fs = require('fs');
-
-
-//var SegfaultHandler = require('segfault-handler');
-
-//SegfaultHandler.registerHandler();
+var CA = require('../../../src/lib/CA.js');
 
 
 console.log('start');
-
 
 var myPeerId = uuid.v4();
 
@@ -71,7 +67,8 @@ peer.events.on('ready', function() {
                 .then(doAuthenticateConnection)
                 .then(function(){
                     var p = peer.peerConnection(peerId);
-                    console.log(p.remoteCertificate);
+                    console.log(forge.pki.certificateToPem(p.remoteCertificate));
+                    console.log(p.getRemoteCertificateFingerprint());
                 });
                 //.then(doSendData);
                 //.then(doPing);

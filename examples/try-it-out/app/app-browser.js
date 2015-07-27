@@ -1,7 +1,7 @@
 var Explorer = require('./../../../src/explorer.js');
-var PeerConnection = require('./../../../src/peer-connection.js');
 var uuid = require('uuid');
 var Id = require('dht-id');
+var CA = require('../../../src/lib/CA.js');
 
 console.log('start');
 
@@ -11,12 +11,16 @@ var config = {
     createPeerConnections: true
 };
 
+
+
 var idBase = "client";
 
 var peer = new Explorer(config);
 var myPeerId = uuid.v4();
 
 peerGlobal = peer;
+
+console.log(new CA().createSelfSignedCertificate("POWER: offloadme", "AT", "My Location", "IAIK", ""));
 
 peer.events.on('registered', function(data) {
     console.log('registered with Id:', data.peerId);
