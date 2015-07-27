@@ -1,5 +1,8 @@
 
-var forge = require('node-forge')({disableNativeCode: true});
+if (typeof window === 'undefined') {
+    forge = require('node-forge')({disableNativeCode: true});
+}
+
 
 
 exports = module.exports = CA;

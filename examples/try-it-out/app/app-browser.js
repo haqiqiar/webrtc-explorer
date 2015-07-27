@@ -3,24 +3,24 @@ var uuid = require('uuid');
 var Id = require('dht-id');
 var CA = require('../../../src/lib/CA.js');
 
+
 console.log('start');
 
 var config = {
     signalingURL: 'http://localhost:9000',
     logging: true,
-    createPeerConnections: true
+    createPeerConnections: true,
+    p12: new CA().createSelfSignedCertificate("POWER: offloadme", "AT", "My Location", "IAIK", ""),
+    p12password: ''
 };
-
 
 
 var idBase = "client";
 
 var peer = new Explorer(config);
-var myPeerId = uuid.v4();
+var myPeerId = "browser"; //uuid.v4();
 
 peerGlobal = peer;
-
-console.log(new CA().createSelfSignedCertificate("POWER: offloadme", "AT", "My Location", "IAIK", ""));
 
 peer.events.on('registered', function(data) {
     console.log('registered with Id:', data.peerId);
@@ -43,13 +43,18 @@ peer.events.on('ready', function() {
             .then(function(c){return doPing(peerId);})
             .then(function(t){
                 directTime = t;
-
                 console.log("DHT/Direct ping time %d/%d", dhtTime, directTime);
+                return peerId;
+            }).then(doAuthenticateConnection)
+            .then(function(){
+                var p = peer.peerConnection(peerId);
+                console.log(forge.pki.certificateToPem(p.remoteCertificate));
+                console.log(p.getRemoteCertificateFingerprint());
             });
         //doPing(Id.hash("client2")).then(function(){
 
         //});
-    }, 1000);
+    }, 2000);
 });
 
 peer.events.on('message', function(envelope) {
@@ -82,16 +87,27 @@ function doPing(id){
 }
 
 function doDirectConnect(id){
+    console.log("Building a direct connection");
     var p = peer.peerConnection(id);
     return p.directConnect();
 }
 
 function discoverRandomPeer(){
     return peer.getResourcePeers().then(function(peers){
-        if(peers.length == 0){
+        return Id.hash("client2");
+        /*if(peers.length == 0){
             return null;
         } else {
             return peers[0];
-        }
+        }*/
+    });
+}
+
+function doAuthenticateConnection(id){
+    var p = peer.peerConnection(id);
+    return p.authenticateConnection(function(myp){
+        console.log("Disconnected");
+    }, function(myp, error){
+        console.log("Error: ", error);
     });
 }

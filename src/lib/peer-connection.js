@@ -1,7 +1,10 @@
 var ee2 = require('eventemitter2').EventEmitter2;
 var Q = require('q');
 var SimplePeer = require('simple-peer');
-var forge = require('node-forge')({disableNativeCode: true});
+
+if (typeof window === 'undefined') {
+    forge = require('node-forge')({disableNativeCode: true});
+}
 
 
 exports = module.exports = PeerConnection;
