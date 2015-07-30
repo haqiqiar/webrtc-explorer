@@ -36,7 +36,8 @@
     "q" : "latest",
     "node-forge" : "latest",
     "segfault-handler" : "latest",
-    "requirejs" : "latest"
+    "requirejs" : "latest",
+    "btoa":"latest"
   },
   "devDependencies": {
     "code": "^1.2.1",

@@ -41,12 +41,14 @@ function Peer(config) {
 
     var peerconnections = {};
 
-    var ioc = io(config.signalingURL + '/');
+    var ioc = io(config.signalingURL + '/', {'force new connection': true });
+
 
     ioc.once('connect', connected);
     ioc.on('c-finger-update', function(data, cb) {
         if (!self.fingerTable) {
             console.log('DEBUG: got a finger-update before finger table was ready');
+            return;
         }
 
         self.fingerTable.fingerUpdate(data);
@@ -56,6 +58,7 @@ function Peer(config) {
     ioc.on('c-predecessor', function(data, cb) {
         if (!self.fingerTable) {
             console.log('DEBUG: got a predecessor before finger table was ready');
+            return;
         }
         self.fingerTable.predecessorUpdate(data);
         cb(true);
@@ -97,6 +100,7 @@ function Peer(config) {
             self.events.emit('registered', {peerId: data.peerId});
         }
 
+        console.log("Emitting s-register ", peerId);
         ioc.emit('s-register', {'id' : peerId});
     };
 
@@ -125,6 +129,19 @@ function Peer(config) {
         router(envelope);
     };
 
+
+    self.destroy = function(){
+        ioc.close();
+        //ioc.emit('s-unregister', []);
+        Object.keys(peerconnections).forEach(function(k){
+           peerconnections[k].destroy();
+        });
+
+        self.channelManager = null;
+        self.fingerTable.destroy();
+        self.fingerTable = null;
+
+    };
     /// message router
 
     function router(envelope) {

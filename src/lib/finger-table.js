@@ -200,4 +200,12 @@ function FingerTable (peerId, events, channelManager) {
         });
         return deferred.promise;
     };
+
+    self.destroy = function(){
+        Object.keys(table).forEach(function(k){
+           if(table[k].channel){
+               table[k].channel.destroy();
+           }
+        });
+    };
 }

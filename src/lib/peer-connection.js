@@ -188,6 +188,11 @@ function PeerConnection(config, peer) {
         }
     };
 
+    self.destroy = function(){
+      self.directDisconnect();
+
+    };
+
     /* Requests a TLS encrypted connection from the other peer.
      * The other peer is the server, client certificates are not supported at the moment
      */

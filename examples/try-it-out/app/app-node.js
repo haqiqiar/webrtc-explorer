@@ -29,7 +29,6 @@ var config = {
     signalingURL: 'http://localhost:9000',
     logging: true,
     createPeerConnections: true,
-    fingerTableRefreshmentInterval: 10000,
     wrtc: wrtc,
     p12: p12,
     p12password: 'test'
