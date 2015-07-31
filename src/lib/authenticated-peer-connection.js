@@ -13,18 +13,20 @@ exports = module.exports = AuthenticatedPeerConnection;
 function AuthenticatedPeerConnection(peerconnection) {
     var self = this;
     self.peerConnection = peerconnection;
+    self.remoteCertificate = peerconnection.remoteCertificate;
 
-    var currentlySending = false;
-    var sendQueue = [];
+    self.events = new ee2({
+        wildcard: true,
+        newListener: false,
+        maxListeners: 20
+    });
 
     var sysmsgHandlers = {};
-    var currentCData = [];
     var destroyed = false;
 
     self.send = function (data, forceDht) {
         var strData = JSON.stringify(data);
-        console.log("AUTH Sending: ", strData);
-        self.peerConnection.tls.prepare(JSON.stringify(data));
+        self.peerConnection.tls.prepare(strData + "\n\n");
     };
 
 
@@ -79,13 +81,11 @@ function AuthenticatedPeerConnection(peerconnection) {
         destroyed = true;
     };
 
-    peerconnection.events.on('message', messageHandler);
+    self.events.on('internal-message', messageHandler);
 
     function messageHandler(envelope) {
         if(destroyed) return;
         if (envelope.srcId !== self.peerConnection.config.dstId) return;
-
-        console.log("AUTH MessageHandler: ", envelope.data);
 
         if ('sysmsg' in envelope.data && envelope.data.sysmsg === 'ping') {
             self.send({'sysmsg': 'pong'});

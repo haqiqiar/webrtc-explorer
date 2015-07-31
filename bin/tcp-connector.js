@@ -124,37 +124,40 @@ var server = net.createServer(function(socket){
             var peerconnectionId = uuid.v4();
             clientIdToPeerConnection[peerconnection.config.dstId] = peerconnectionId;
             objectStore[peerconnectionId] = peerconnection;
-            send({
-                'type': 'event',
-                'objectId': msg.objectId,
-                'event': 'new-peerconnection',
-                'peerconnection-id': peerconnectionId
-            }, socket);
-            peerconnection.events.on('message', function(envelope){
-                send({
-                    'type': 'event',
-                    'objectId': peerconnectionId,
-                    'event': 'nmessage',
-                    'data': envelope
-                }, socket);
-            });
-        });
+            peerconnection.events.on('new-authenticated-connection', function(authenticatedConnection){
+                var authId = uuid.v4();
+                objectStore[authId] = authenticatedConnection;
 
-        objectStore[msg.objectId].events.on('new-peerconnection', function(peerconnection){
-            var peerconnectionId = uuid.v4();
-            clientIdToPeerConnection[peerconnection.config.dstId] = peerconnectionId;
-            objectStore[peerconnectionId] = peerconnection;
+                send({
+                    'type': 'event',
+                    'objectId': peerconnectionId,
+                    'event': 'new-authenticated-connection',
+                    'authId': authId
+                }, socket);
+
+                authenticatedConnection.events.on('message', function(envelope){
+                    send({
+                        'type': 'event',
+                        'objectId': authId,
+                        'event': 'message',
+                        'data': envelope
+                    }, socket);
+                });
+            });
+
             send({
                 'type': 'event',
                 'objectId': msg.objectId,
                 'event': 'new-peerconnection',
-                'peerconnection-id': peerconnectionId
+                'peerconnection-id': peerconnectionId,
+                'peer-id' : peerconnection.config.dstId
             }, socket);
+
             peerconnection.events.on('message', function(envelope){
                 send({
                     'type': 'event',
                     'objectId': peerconnectionId,
-                    'event': 'nmessage',
+                    'event': 'message',
                     'data': envelope
                 }, socket);
             });
@@ -239,10 +242,13 @@ var server = net.createServer(function(socket){
                 'data' : error
             }, socket);
         })
-            .then(function(){
+            .then(function(authenticatedConnection){
+                var authenticatedConnectionId = uuid.v4();
+                objectStore[authenticatedConnectionId] = authenticatedConnection;
                 send({
                     'type': 'r',
                     'callId': msg['callId'],
+                    'authId' : authenticatedConnectionId,
                     'success' : 1
                 }, socket);
             })

@@ -234,8 +234,18 @@ function PeerConnection(config, peer) {
                 self.send({sysmsg: 'tls-data', data: db64});
             },
             dataReady: function(connection) {
-                console.log("TLS DATA: ", connection.data.toString());
-                self.events.emit('message', {srcId: self.config.dstId, data: JSON.parse(connection.data.toString())});
+                var data = forge.util.decodeUtf8(connection.data.getBytes()).toString();
+
+                try {
+                    data.toString().split("\n\n").forEach(function(d){
+                        if(d == '') return;
+                        var msg = JSON.parse(d);
+                        //console.log("TLS application data: %s", msg);
+                        self.authenticatedConnection.events.emit('internal-message', {srcId: self.config.dstId, data: msg});
+                    });
+                } catch(ex){
+                    console.log(ex);
+                }
             },
             closed: function(connection) {
                 tlsReady = false;
@@ -387,7 +397,17 @@ function PeerConnection(config, peer) {
                     self.send({sysmsg: 'tls-data', data: db64});
                 },
                 dataReady: function(connection) {
-                    self.events.emit('message', {srcId: self.config.dstId, data: JSON.parse(connection.data.toString())});
+                    var data = forge.util.decodeUtf8(connection.data.getBytes()).toString();
+                    try {
+                        data.toString().split("\n\n").forEach(function(d){
+                            if(d == '') return;
+                            var msg = JSON.parse(d);
+                            self.authenticatedConnection.events.emit('internal-message', {srcId: self.config.dstId, data: msg});
+                        });
+                    } catch(ex){
+                        console.log(ex, ex.stack);
+                    }
+
                 },
                 closed: function(connection) {
                     tlsReady = false;
