@@ -34,6 +34,7 @@ peer.events.on('ready', function() {
 
         var dhtTime;
         var directTime;
+        var tlsTime;
         var peerId;
         discoverRandomPeer()
             .then(function(p){peerId = p; return p;})
@@ -46,10 +47,15 @@ peer.events.on('ready', function() {
                 console.log("DHT/Direct ping time %d/%d", dhtTime, directTime);
                 return peerId;
             }).then(doAuthenticateConnection)
+            .then(function(authC){
+                console.log(forge.pki.certificateToPem(authC.remoteCertificate));
+                console.log(authC.getRemoteCertificateFingerprint());
+                tlsTime = new Date().getTime();
+                return authC.ping();
+            })
             .then(function(){
-                var p = peer.peerConnection(peerId);
-                console.log(forge.pki.certificateToPem(p.remoteCertificate));
-                console.log(p.getRemoteCertificateFingerprint());
+                tlsTime = new Date().getTime() - tlsTime;
+                console.log("TLS ping time %d", tlsTime);
             });
         //doPing(Id.hash("client2")).then(function(){
 
