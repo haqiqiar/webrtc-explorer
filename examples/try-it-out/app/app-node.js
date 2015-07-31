@@ -59,16 +59,17 @@ peer.events.on('ready', function() {
             var peerId;
             discoverRandomPeer()
                 .then(function(p){peerId = Id.hash("client2"); return peerId;})
-                .then(doDirectConnect)
-                .then(function(){return peerId;})
+                //.then(doDirectConnect)
+                //.then(function(){return peerId;})
                 .then(doPing)
                 .then(function(){return peerId;})
                 .then(doAuthenticateConnection)
-                .then(function(){
+                .then(function(authenticatedConnection){
                     var p = peer.peerConnection(peerId);
                     console.log(forge.pki.certificateToPem(p.remoteCertificate));
                     console.log(p.getRemoteCertificateFingerprint());
-                });
+                }).then(function(){return peerId;})
+                .then(doAuthPing);
                 //.then(doSendData);
                 //.then(doPing);
                 //.then(function (t){dhtTime = t; return peerId;})
@@ -129,6 +130,18 @@ function doPing(id){
         return time;
     });
     return p.ping("").then(pong);
+}
+
+function doAuthPing(id){
+    var p = peer.peerConnection(id);
+    var tick = new Date().getTime();
+
+    var pong = (function(d) {
+        var time = new Date().getTime() - tick;
+        console.log("Ping completed %d", time);
+        return time;
+    });
+    return p.authenticatedConnection.ping("").then(pong);
 }
 
 function doSendData(id){

@@ -1,6 +1,7 @@
 var ee2 = require('eventemitter2').EventEmitter2;
 var Q = require('q');
 var SimplePeer = require('simple-peer');
+var AuthenticatedPeerConnection = require('./authenticated-peer-connection.js');
 
 if (typeof window === 'undefined') {
     forge = require('node-forge')({disableNativeCode: true});
@@ -30,6 +31,8 @@ function PeerConnection(config, peer) {
         maxListeners: 20
     });
 
+    self.authenticatedConnection = null;
+
     var currentlySending = false;
     var sendQueue = [];
 
@@ -38,6 +41,7 @@ function PeerConnection(config, peer) {
 
     var tlsKey = null;
     var tlsCert = null;
+    var tlsReady = false;
 
     if('p12' in self.config && self.config.p12) {
         var p12Der = forge.util.decode64(self.config.p12);
@@ -50,11 +54,11 @@ function PeerConnection(config, peer) {
 
     self.send = function (data, forceDht) {
         var strData = JSON.stringify(data);
-        console.log("Sending: ", strData);
+        //console.log("Sending: ", strData);
         var i;
         var msgArray = [];
 
-        if (strData.length > 200) {
+        /*if (strData.length > 200) {
             for (i = 0; i < strData.length / 200; i++) {
                 msgArray.push(strData.substr(i * 200, 200));
             }
@@ -62,7 +66,7 @@ function PeerConnection(config, peer) {
             //var r = strData.length - 200 * Math.floor(strData.length / 200);
             //if (r > 0)
             //    msgArray.push(strData.substr(200 * Math.floor(strData.length / 200), r));
-        }
+        }*/
 
         if (self.directChannel && self.directChannel.destroyed) {
             self.directChannel = null;
@@ -98,6 +102,7 @@ function PeerConnection(config, peer) {
                     cs: msgArray.length,
                     data: msgArray[i]
                 };
+
 
                 if (currentlySending) {
                     sendQueue.push(toSend)
@@ -199,6 +204,7 @@ function PeerConnection(config, peer) {
     self.authenticateConnection = function(cbClosed, cbError){
         var deferred = Q.defer();
 
+        tlsReady = false;
         self.send({sysmsg : 'initiate-tls'});
 
         self.tls = forge.tls.createConnection({
@@ -214,7 +220,13 @@ function PeerConnection(config, peer) {
                 return true;
             },
             connected: function(connection) {
-                deferred.resolve();
+                tlsReady = true;
+                console.log("TLS connected");
+                if(self.authenticatedConnection){
+                    self.authenticatedConnection.destroy();
+                }
+                self.authenticatedConnection = new AuthenticatedPeerConnection(self);
+                deferred.resolve(self.authenticatedConnection);
             },
             tlsDataReady: function(connection) {
                 var d = connection.tlsData.getBytes();
@@ -222,12 +234,15 @@ function PeerConnection(config, peer) {
                 self.send({sysmsg: 'tls-data', data: db64});
             },
             dataReady: function(connection) {
+                console.log("TLS DATA: ", connection.data.toString());
                 self.events.emit('message', {srcId: self.config.dstId, data: JSON.parse(connection.data.toString())});
             },
             closed: function(connection) {
+                tlsReady = false;
                 cbClosed(this);
             },
             error: function(connection, error) {
+                tlsReady = false;
                 cbError(this, error);
             }
         });
@@ -271,7 +286,7 @@ function PeerConnection(config, peer) {
     function messageHandler(envelope) {
         if (envelope.srcId !== self.config.dstId) return;
 
-        var writeToLog = true;
+        var writeToLog = false;
         if ('sysmsg' in envelope.data && envelope.data.sysmsg === 'cdata'){
             writeToLog = false;
         } else if ('sysmsg' in envelope.data && envelope.data.sysmsg === 'ack'){
@@ -342,6 +357,7 @@ function PeerConnection(config, peer) {
                 return;
             }
 
+            tlsReady = false;
             self.tls = forge.tls.createConnection({
                 server: true,
                 sessionCache: {},
@@ -351,7 +367,13 @@ function PeerConnection(config, peer) {
                     return true;
                 },
                 connected: function(connection) {
-                    console.log('connected');
+                    console.log("TLS connected");
+                    tlsReady = true;
+                    if(self.authenticatedConnection){
+                        self.authenticatedConnection.destroy();
+                    }
+                    self.authenticatedConnection = new AuthenticatedPeerConnection(self);
+                    self.events.emit('new-authenticated-connection', self.authenticatedConnection);
                 },
                 getCertificate: function(connection, hint) {
                     return tlsCert;
@@ -368,10 +390,12 @@ function PeerConnection(config, peer) {
                     self.events.emit('message', {srcId: self.config.dstId, data: JSON.parse(connection.data.toString())});
                 },
                 closed: function(connection) {
-                    console.log('disconnected');
+                    tlsReady = false;
+                    console.log('TLS to %s disconnected',self.config.dstId);
                 },
                 error: function(connection, error) {
-                    console.log('uh oh', error);
+                    tlsReady = false;
+                    console.log('Error on TLS connection to %s: %s', self.config.dstId, error);
                 }
             });
 

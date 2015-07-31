@@ -139,6 +139,26 @@ var server = net.createServer(function(socket){
                 }, socket);
             });
         });
+
+        objectStore[msg.objectId].events.on('new-peerconnection', function(peerconnection){
+            var peerconnectionId = uuid.v4();
+            clientIdToPeerConnection[peerconnection.config.dstId] = peerconnectionId;
+            objectStore[peerconnectionId] = peerconnection;
+            send({
+                'type': 'event',
+                'objectId': msg.objectId,
+                'event': 'new-peerconnection',
+                'peerconnection-id': peerconnectionId
+            }, socket);
+            peerconnection.events.on('message', function(envelope){
+                send({
+                    'type': 'event',
+                    'objectId': peerconnectionId,
+                    'event': 'nmessage',
+                    'data': envelope
+                }, socket);
+            });
+        });
     }
 
     function getPeerConnection(msg, socket){
