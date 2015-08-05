@@ -1107,7 +1107,7 @@ define([
     };
 
     LocalStorage.prototype.removeItem = function(key) {
-      var evnt, filename, hasListeners, metaKey, oldValue;
+      var evnt, filename, hasListeners, k, meta, metaKey, oldValue, v, _ref;
       key = key.toString();
       metaKey = this.metaKeyMap[key];
       if (!!metaKey) {
@@ -1121,6 +1121,14 @@ define([
         this.bytesInUse -= metaKey.size;
         filename = path.join(this.location, metaKey.key);
         this.keys.splice(metaKey.index, 1);
+        _ref = this.metaKeyMap;
+        for (k in _ref) {
+          v = _ref[k];
+          meta = this.metaKeyMap[k];
+          if (meta.index > metaKey.index) {
+            meta.index -= 1;
+          }
+        }
         _rm(filename);
         if (hasListeners) {
           evnt = new StorageEvent(key, oldValue, null, this.eventUrl);

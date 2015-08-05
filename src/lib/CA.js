@@ -77,4 +77,9 @@ function CA(){
         return forge.util.encode64(p12Der);
     };
 
+    self.exportToP12 = function(privatekey, certchain, password){
+        var p12Asn1 = forge.pkcs12.toPkcs12Asn1(privatekey, certchain, password);
+        var p12Der = forge.asn1.toDer(p12Asn1).getBytes();
+        return forge.util.encode64(p12Der);
+    };
 }
