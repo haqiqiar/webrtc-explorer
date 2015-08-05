@@ -75,6 +75,8 @@ var server = net.createServer(function(socket){
             peerConnection_getRemoteCertificate(msg, socket);
         }  else if(msg['type'] === "updateResourceProviderState"){
             updateResourceProviderState(msg, socket);
+        }  else if(msg['type'] === "getResourcePeers"){
+            getResourcePeers(msg, socket);
         }
     }
 
@@ -181,6 +183,17 @@ var server = net.createServer(function(socket){
 
     function updateResourceProviderState(msg, socket){
         objectStore[msg.objectId].updateResourceProviderState(msg.args[0]);
+    }
+
+    function getResourcePeers(msg, socket){
+        objectStore[msg.objectId].getResourcePeers()
+            .then(function(peers){
+                send({
+                    'type': 'r',
+                    'callId': msg['callId'],
+                    'peers' : peers
+                }, socket);
+            });
     }
 
     function peerConnection_send(msg, socket){
