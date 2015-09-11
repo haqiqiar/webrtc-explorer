@@ -2,6 +2,7 @@ var ee2 = require('eventemitter2').EventEmitter2;
 var Q = require('q');
 var SimplePeer = require('simple-peer');
 var AuthenticatedPeerConnection = require('./authenticated-peer-connection.js');
+var lz4 = require('lz4');
 
 if (typeof window === 'undefined') {
     forge = require('node-forge')({disableNativeCode: true});
@@ -11,6 +12,7 @@ if (typeof window === 'undefined') {
 exports = module.exports = PeerConnection;
 
 
+var GZIP_BUFFERSIZE = 1024*64;
 // In the first place, a peer connection is just an abstraction of the peer where the dstId, only needs to be
 // provided at creation.
 // Furthermore the PeerConnection provides some built in functionality like "pinging"
@@ -21,6 +23,26 @@ exports = module.exports = PeerConnection;
 // }
 function PeerConnection(config, peer) {
     var self = this;
+
+    self.peerConfig = {
+        iceServers: [
+            {
+                url: 'stun:23.21.150.121', // deprecated, replaced by `urls`
+                urls: 'stun:23.21.150.121'
+            },
+            {
+                url:'stun:stun.l.google.com:19302',
+                urls:'stun:stun.l.google.com:19302'
+            },
+            {
+                url: "turn:94.199.242.252:3478",
+                urls: "turn:94.199.242.252:3478",
+                credential: "offloadme",
+                username: "power"
+            }
+        ]
+    };
+
     self.config = config;
 
     self.tlsServer = null;
@@ -33,11 +55,14 @@ function PeerConnection(config, peer) {
 
     self.authenticatedConnection = null;
 
+    var remainingGzipLength = 0;
     var currentlySending = false;
     var sendQueue = [];
 
+
     var sysmsgHandlers = {};
     var currentCData = [];
+    var currentReceivedGzData = [];
 
     var tlsKey = null;
     var tlsCert = null;
@@ -57,29 +82,55 @@ function PeerConnection(config, peer) {
         //console.log("Sending: ", strData);
         var i;
         var msgArray = [];
+        var gzippedMsgArray = [];
 
-        /*if (strData.length > 200) {
-            for (i = 0; i < strData.length / 200; i++) {
-                msgArray.push(strData.substr(i * 200, 200));
+
+        if (strData.length > 1024) {
+            var b = new Buffer(strData);
+            var gzipped = lz4.encode(b);
+            i = 0;
+
+            if (gzipped.length >= GZIP_BUFFERSIZE) {
+
+                for (i = 0; (i+GZIP_BUFFERSIZE) <= gzipped.length; i += GZIP_BUFFERSIZE) {
+                    var newBuffer = new Buffer(GZIP_BUFFERSIZE);
+                    gzipped.copy(newBuffer, 0, i, Math.min(i + GZIP_BUFFERSIZE, gzipped.length));
+                    //console.log("Adding buffer with length: " + newBuffer.length.toString());
+                    gzippedMsgArray.push(newBuffer);
+                }
+
+                if (gzipped.length != i) {
+                    var restBuffer = new Buffer(gzipped.length - i);
+                    gzipped.copy(restBuffer, 0, i, i + restBuffer.length);
+                    //console.log("Adding buffer with length: " + restBuffer.length.toString());
+                    gzippedMsgArray.push(restBuffer);
+                }
+            } else {
+                //console.log("Adding buffer with length: " + gzipped.length.toString());
+                gzippedMsgArray.push(gzipped);
             }
+
+            //for (i = 0; i < strData.length / 200; i++) {
+            //    msgArray.push(strData.substr(i * 200, 200));
+            //}
 
             //var r = strData.length - 200 * Math.floor(strData.length / 200);
             //if (r > 0)
             //    msgArray.push(strData.substr(200 * Math.floor(strData.length / 200), r));
-        }*/
+        }
 
         if (self.directChannel && self.directChannel.destroyed) {
             self.directChannel = null;
         }
 
 
-        if (msgArray.length === 0) {
+        if (msgArray.length === 0 && gzippedMsgArray.length == 0) {
             var isAck = true;
 
             //HACK: bad hack, as buffered amount on webrtc implementation does not seem to work.
             //Acknowledge all packets, before sending next one. Can be removed, when bufferedamount is working correctly
             //Acknowledge id was left 0 by intention, as we anyhow have a reliable connection
-            if('sysmsg' in data && data.sysmsg !== 'ack') {
+            if ('sysmsg' in data && data.sysmsg !== 'ack') {
                 isAck = false;
                 data.ack = 0;
             }
@@ -93,12 +144,12 @@ function PeerConnection(config, peer) {
                 currentlySending = !isAck;
                 dhtSend(data);
             }
-        } else {
-            for(i=0; i<msgArray.length; i++) {
+        } else if (gzippedMsgArray.length == 0) {
+            for (i = 0; i < msgArray.length; i++) {
                 var toSend = {
                     sysmsg: 'cdata',
                     ack: 0,
-                    c: i+1,
+                    c: i + 1,
                     cs: msgArray.length,
                     data: msgArray[i]
                 };
@@ -114,6 +165,51 @@ function PeerConnection(config, peer) {
                     dhtSend(toSend);
                 }
             }
+        } else {
+
+            var length = 0;
+            for (i = 0; i < gzippedMsgArray.length; i++) {
+                length += gzippedMsgArray[i].length;
+            }
+
+            for (i = -1; i < gzippedMsgArray.length; i++) {
+                var togzSend;
+
+                if (i == -1) {
+                    console.log("Sending initial gzdata message");
+                    togzSend = {
+                        sysmsg: 'gzdata',
+                        ack: 0,
+                        l: length
+                    };
+
+                    if (currentlySending) {
+                        sendQueue.push(togzSend)
+                    } else if (self.directChannel) {
+                        currentlySending = true;
+                        self.directChannel.send(JSON.stringify(togzSend));
+                    } else {
+                        currentlySending = true;
+                        dhtSend(togzSend);
+                    }
+
+                } else {
+                    togzSend = gzippedMsgArray[i];
+
+                    if (currentlySending) {
+                        sendQueue.push(togzSend)
+                    } else if (self.directChannel) {
+                        currentlySending = true;
+                        self.directChannel.send(togzSend);
+                    } else {
+                        currentlySending = true;
+                        dhtSend(togzSend.toString('base64'));
+                    }
+                }
+
+
+            }
+
         }
 
 
@@ -157,7 +253,7 @@ function PeerConnection(config, peer) {
 
         delete self.directChannel;
 
-        self.pendingChannel = new SimplePeer({initiator: true, wrtc: self.config.wrtc});
+        self.pendingChannel = new SimplePeer({initiator: true, wrtc: self.config.wrtc, config: self.peerConfig});
 
         self.pendingChannel.on('signal', function (signal) {
             console.log('direct offer: ', JSON.stringify(signal));
@@ -289,8 +385,29 @@ function PeerConnection(config, peer) {
 
 
     function directChannel_onData(data) {
-        console.log("Direct channel data: %s", JSON.stringify(data));
-        messageHandler({srcId: self.config.dstId, data: data});
+        if(remainingGzipLength > 0 && (data instanceof Buffer || data._isBuffer)){
+
+            var buffer = data;
+            if('data' in data){
+                buffer = new Buffer(data.data);
+            }
+
+            remainingGzipLength -= buffer.length;
+            currentReceivedGzData.push(buffer);
+
+            self.send({sysmsg : 'ack', id: 0});
+
+
+            if(remainingGzipLength == 0){
+                var compressedBuffer = Buffer.concat(currentReceivedGzData);
+                var uncompressedBuffer = lz4.decode(compressedBuffer);
+                currentReceivedGzData = [];
+                messageHandler({srcId: self.config.dstId, data: JSON.parse(uncompressedBuffer.toString())});
+            }
+        } else {
+            //console.log("Direct channel data: %s", JSON.stringify(data));
+            messageHandler({srcId: self.config.dstId, data: data});
+        }
     }
 
     function messageHandler(envelope) {
@@ -312,14 +429,26 @@ function PeerConnection(config, peer) {
         }
 
         if('sysmsg' in envelope.data && envelope.data.sysmsg === 'ack') {
+
             if(sendQueue.length > 0){
                 var toSend = sendQueue.shift();
-                if (self.directChannel) {
-                    currentlySending = true;
-                    self.directChannel.send(JSON.stringify(toSend));
+
+                if(toSend instanceof Buffer || toSend._isBuffer){
+                    if (self.directChannel) {
+                        currentlySending = true;
+                        self.directChannel.send(toSend);
+                    } else {
+                        currentlySending = true;
+                        dhtSend(toSend.toString('base64'));
+                    }
                 } else {
-                    currentlySending = true;
-                    dhtSend(toSend);
+                    if (self.directChannel) {
+                        currentlySending = true;
+                        self.directChannel.send(JSON.stringify(toSend));
+                    } else {
+                        currentlySending = true;
+                        dhtSend(toSend);
+                    }
                 }
             } else {
                 currentlySending = false;
@@ -328,7 +457,7 @@ function PeerConnection(config, peer) {
             self.send({'sysmsg': 'pong'});
         } else if ('sysmsg' in envelope.data && envelope.data.sysmsg === 'offer') {
             if (!self.pendingChannel) {
-                self.pendingChannel = new SimplePeer({initiator: false, wrtc: self.config.wrtc});
+                self.pendingChannel = new SimplePeer({initiator: false, wrtc: self.config.wrtc, config: self.peerConfig});
 
                 self.pendingChannel.on('connect', function () {
                     console.log('direct channel ready');
@@ -437,6 +566,11 @@ function PeerConnection(config, peer) {
                 currentCData = [];
                 messageHandler({srcId: self.config.dstId, data: JSON.parse(d)});
             }
+
+        } else if ('sysmsg' in envelope.data && envelope.data.sysmsg === 'gzdata') {
+            console.log('GZipped data will follow: ' + envelope.data.l.toString());
+            remainingGzipLength = envelope.data.l;
+            currentReceivedGzData = [];
 
         } else {
             self.events.emit('message', envelope);

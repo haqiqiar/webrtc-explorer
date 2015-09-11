@@ -2,7 +2,25 @@ var Explorer = require('./../../../src/explorer.js');
 var uuid = require('uuid');
 var Id = require('dht-id');
 var CA = require('../../../src/lib/CA.js');
+var zlib = require('zlibjs');
+var lz4 = require('lz4');
 
+var possible = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+var text = "";
+for( var i=0; i < 1024*1024; i++ ) {
+    var bla = possible.charAt(Math.floor(Math.random() * possible.length));
+    text += bla + bla + bla ;
+}
+
+console.log("Start compression: " + text.length.toString());
+var result = zlib.gzipSync(new Buffer(text));
+console.log("Finished compression: " + result.length.toString());
+var input = new Buffer(text);
+result = new Buffer(lz4.encodeBound(input.length));
+var compressedSize = lz4.encodeBlock(input, result);
+result = result.slice(0, compressedSize);
+console.log("Finished compression: " + result.length.toString());
+return;
 
 console.log('start');
 

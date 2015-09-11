@@ -7,6 +7,24 @@ var _pendingConnections = {};
 
 function ChannelManager(peerId, ioc, router, config) {
     var self = this;
+    self.peerConfig = {
+        iceServers: [
+            {
+                url: 'stun:23.21.150.121', // deprecated, replaced by `urls`
+                urls: 'stun:23.21.150.121'
+            },
+            {
+                url:'stun:stun.l.google.com:19302',
+                urls:'stun:stun.l.google.com:19302'
+            },
+            {
+                url: "turn:94.199.242.252:3478",
+                urls: "turn:94.199.242.252:3478",
+                credential: "offloadme",
+                username: "power"
+            }
+        ]
+    };
 
     /// establish a connection to another peer
 
@@ -16,7 +34,7 @@ function ChannelManager(peerId, ioc, router, config) {
         var intentId = (~~(Math.random() * 1e9))
                         .toString(36) + Date.now();
 
-        var channel = new SimplePeer({initiator: true, wrtc: config.wrtc});
+        var channel = new SimplePeer({initiator: true, wrtc: config.wrtc, config: self.peerConfig});
 
         channel.on('signal', function (signal) {
             console.log('sendOffer %s', JSON.stringify(signal));
@@ -70,7 +88,7 @@ function ChannelManager(peerId, ioc, router, config) {
         }
 
         if(!(data.offer.srcId in _pendingConnections)){
-            channel = new SimplePeer({wrtc: config.wrtc});
+            channel = new SimplePeer({wrtc: config.wrtc, config: self.peerConfig});
             channel.on('connect', function() {
                 console.log('channel ready to listen');
                 delete _pendingConnections[data.offer.srcId];

@@ -18,15 +18,31 @@ var server = net.createServer(function(socket){
     var objectStore = {};
     var clientIdToPeerConnection = {};
 
+    var cachedData = "";
+
     socket.on("data", function(data){
-        console.log("TCP-connector received: ", data.toString() );
+        //console.log("TCP-connector received: ", data.toString() );
 
         try {
-            data.toString().split("\n\n").forEach(function(d){
-                if(d == '') return;
-                var msg = JSON.parse(d);
-                dispatcher(msg, socket);
-            });
+            cachedData += data;
+            var i = cachedData.indexOf("\n\n");
+            while(i>-1) {
+                var currentData = cachedData.substring(0, i);
+                cachedData = cachedData.substring(i+2);
+
+                if(currentData !== '') {
+                    var msg = JSON.parse(currentData);
+                    console.log("Data length: " + currentData.length.toString());
+                    dispatcher(msg, socket);
+                }
+                i = cachedData.indexOf("\n\n");
+                /*data.toString().split("\n\n").forEach(function (d) {
+                    if (d == '') return;
+                    var msg = JSON.parse(d);
+                    dispatcher(msg, socket);
+                });
+                */
+            }
         } catch(ex){
             console.log(ex);
         }

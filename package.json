@@ -37,7 +37,11 @@
     "node-forge" : "latest",
     "segfault-handler" : "latest",
     "requirejs" : "latest",
-    "btoa":"latest"
+    "btoa":"latest",
+    "stunturncheck":"latest",
+    "zlibjs":"latest",
+    "buffer":"latest",
+    "lz4":"latest"
   },
   "devDependencies": {
     "code": "^1.2.1",

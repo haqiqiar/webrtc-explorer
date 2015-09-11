@@ -3,11 +3,30 @@ var uuid = require('uuid');
 var Id = require('dht-id');
 var wrtc = require('wrtc');
 var forge = require('node-forge');
+var zlib = require('zlibjs');
+var lz4 = require('lz4');
 fs = require('fs');
 var CA = require('../../../src/lib/CA.js');
 
-
 console.log('start');
+
+
+var possible = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+var text = "";
+for( var i=0; i < 1024*1024; i++ ) {
+    var bla = possible.charAt(Math.floor(Math.random() * possible.length));
+    text += bla + bla + bla ;
+}
+
+console.log("Start compression: " + text.length.toString());
+var result = zlib.gzipSync(new Buffer(text));
+console.log("Finished compression: " + result.length.toString());
+var input = new Buffer(text);
+result = lz4.encode(input);
+console.log("Finished compression: " + result.length.toString());
+result = lz4.decode(result);
+console.log(result.toString());
+return;
 
 var myPeerId = uuid.v4();
 
