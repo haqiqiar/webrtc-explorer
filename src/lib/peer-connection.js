@@ -3,6 +3,7 @@ var Q = require('q');
 var SimplePeer = require('simple-peer');
 var AuthenticatedPeerConnection = require('./authenticated-peer-connection.js');
 var lz4 = require('lz4');
+var msgpack = require('msgpack5')();
 
 if (typeof window === 'undefined') {
     forge = require('node-forge')({disableNativeCode: true});
@@ -12,7 +13,8 @@ if (typeof window === 'undefined') {
 exports = module.exports = PeerConnection;
 
 
-var GZIP_BUFFERSIZE = 1024*64;
+var GZIP_BUFFERSIZE = 1024*256;
+var USE_ACK = false;
 // In the first place, a peer connection is just an abstraction of the peer where the dstId, only needs to be
 // provided at creation.
 // Furthermore the PeerConnection provides some built in functionality like "pinging"
@@ -78,7 +80,10 @@ function PeerConnection(config, peer) {
     }
 
     self.send = function (data, forceDht) {
+
         var strData = JSON.stringify(data);
+        //var strData = msgpack.encode(data);
+
         //console.log("Sending: ", strData);
         var i;
         var msgArray = [];
@@ -86,8 +91,12 @@ function PeerConnection(config, peer) {
 
 
         if (strData.length > 1024) {
-            var b = new Buffer(strData);
+            console.log(getTime() + ": Creating send buffer");
+            var b = msgpack.encode(data);
+            //var b = new Buffer(strData);
+            console.log(getTime() + ": Compressing message");
             var gzipped = lz4.encode(b);
+            console.log(getTime() + ": Compression finished");
             i = 0;
 
             if (gzipped.length >= GZIP_BUFFERSIZE) {
@@ -130,15 +139,16 @@ function PeerConnection(config, peer) {
             //HACK: bad hack, as buffered amount on webrtc implementation does not seem to work.
             //Acknowledge all packets, before sending next one. Can be removed, when bufferedamount is working correctly
             //Acknowledge id was left 0 by intention, as we anyhow have a reliable connection
-            if ('sysmsg' in data && data.sysmsg !== 'ack') {
+            if ('sysmsg' in data && data.sysmsg !== 'ack' && USE_ACK) {
                 isAck = false;
                 data.ack = 0;
             }
 
-            if (currentlySending && !isAck) {
+            if (currentlySending && !isAck && USE_ACK) {
                 sendQueue.push(data)
             } else if (self.directChannel) {
                 currentlySending = !isAck;
+
                 self.directChannel.send(JSON.stringify(data));
             } else {
                 currentlySending = !isAck;
@@ -155,10 +165,11 @@ function PeerConnection(config, peer) {
                 };
 
 
-                if (currentlySending) {
+                if (currentlySending && USE_ACK) {
                     sendQueue.push(toSend)
                 } else if (self.directChannel) {
                     currentlySending = true;
+
                     self.directChannel.send(JSON.stringify(toSend));
                 } else {
                     currentlySending = true;
@@ -176,17 +187,18 @@ function PeerConnection(config, peer) {
                 var togzSend;
 
                 if (i == -1) {
-                    console.log("Sending initial gzdata message");
+                    console.log(getTime() + ": Sending initial gzdata message");
                     togzSend = {
                         sysmsg: 'gzdata',
                         ack: 0,
                         l: length
                     };
 
-                    if (currentlySending) {
+                    if (currentlySending && USE_ACK) {
                         sendQueue.push(togzSend)
                     } else if (self.directChannel) {
                         currentlySending = true;
+
                         self.directChannel.send(JSON.stringify(togzSend));
                     } else {
                         currentlySending = true;
@@ -196,7 +208,7 @@ function PeerConnection(config, peer) {
                 } else {
                     togzSend = gzippedMsgArray[i];
 
-                    if (currentlySending) {
+                    if (currentlySending && USE_ACK) {
                         sendQueue.push(togzSend)
                     } else if (self.directChannel) {
                         currentlySending = true;
@@ -392,17 +404,26 @@ function PeerConnection(config, peer) {
                 buffer = new Buffer(data.data);
             }
 
+            console.log(getTime() + ": Received gzipped data of size " + buffer.length.toString());
+
             remainingGzipLength -= buffer.length;
             currentReceivedGzData.push(buffer);
 
-            self.send({sysmsg : 'ack', id: 0});
+            if(USE_ACK)
+                self.send({sysmsg : 'ack', id: 0});
 
 
             if(remainingGzipLength == 0){
+                console.log(getTime() + ": Starting concatination");
                 var compressedBuffer = Buffer.concat(currentReceivedGzData);
+                console.log(getTime() + ": Starting Uncompress");
                 var uncompressedBuffer = lz4.decode(compressedBuffer);
+                console.log(getTime() + ": Uncompress finished");
+                //var json = JSON.parse(uncompressedBuffer.toString())
+                var json = msgpack.decode(uncompressedBuffer);
+                console.log(getTime() + ": JSON parsed");
                 currentReceivedGzData = [];
-                messageHandler({srcId: self.config.dstId, data: JSON.parse(uncompressedBuffer.toString())});
+                messageHandler({srcId: self.config.dstId, data: json});
             }
         } else {
             //console.log("Direct channel data: %s", JSON.stringify(data));
@@ -575,6 +596,11 @@ function PeerConnection(config, peer) {
         } else {
             self.events.emit('message', envelope);
         }
+    }
+
+    function getTime() {
+        var now = new Date();
+        return now.getHours()+':'+now.getMinutes()+':'+now.getSeconds()+':'+now.getMilliseconds();
     }
 }
 

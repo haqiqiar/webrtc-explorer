@@ -5,6 +5,36 @@ var CA = require('../../../src/lib/CA.js');
 var zlib = require('zlibjs');
 var lz4 = require('lz4');
 
+var msgpack = require('msgpack5')(); // namespace our extensions
+
+var l = [];
+for(var xy = 0; xy<1000000; xy++){
+    l.push(xy);
+}
+
+var todo = {
+    offload: 'blabla',
+    blabla: '1234',
+    qwert: '3333',
+    test: [1,2,3],
+    result: new Buffer(l)
+};
+
+var time = new Date().getTime();
+var time2;
+console.log(time.toString() + ": start stringify");
+//var s = JSON.stringify(todo);
+var s = msgpack.encode(todo);
+console.log(s.length);
+time2= new Date().getTime();
+console.log(time2.toString() + " " + (time2 - time).toString() +  ": finished stringify");
+time = time2;
+//var j = JSON.parse(s);
+var j = msgpack.decode(s);
+time2=new Date().getTime();
+console.log(time2.toString() + " " + (time2 - time).toString() +  ": finished parse");
+return;
+
 var possible = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 var text = "";
 for( var i=0; i < 1024*1024; i++ ) {

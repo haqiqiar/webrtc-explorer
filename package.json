@@ -41,7 +41,8 @@
     "stunturncheck":"latest",
     "zlibjs":"latest",
     "buffer":"latest",
-    "lz4":"latest"
+    "lz4":"latest",
+    "msgpack5":"latest"
   },
   "devDependencies": {
     "code": "^1.2.1",
