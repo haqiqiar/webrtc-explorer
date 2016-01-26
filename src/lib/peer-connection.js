@@ -13,7 +13,7 @@ if (typeof window === 'undefined') {
 exports = module.exports = PeerConnection;
 
 
-var GZIP_BUFFERSIZE = 1024*256;
+var GZIP_BUFFERSIZE = 1024;//1024*256;
 var USE_ACK = false;
 // In the first place, a peer connection is just an abstraction of the peer where the dstId, only needs to be
 // provided at creation.
@@ -90,13 +90,14 @@ function PeerConnection(config, peer) {
         var gzippedMsgArray = [];
 
 
-        if (strData.length > 1024) {
+        //Temporary disable gzip, something with buffers is not working!
+        if (strData.length > 1024*1000) {
             console.log(getTime() + ": Creating send buffer");
             var b = msgpack.encode(data);
             //var b = new Buffer(strData);
             console.log(getTime() + ": Compressing message");
             var gzipped = lz4.encode(b);
-            console.log(getTime() + ": Compression finished");
+            console.log(getTime() + ": Compression finished original length: " + strData.length.toString() + " compressed length: " + gzipped.length.toString());
             i = 0;
 
             if (gzipped.length >= GZIP_BUFFERSIZE) {
@@ -148,8 +149,9 @@ function PeerConnection(config, peer) {
                 sendQueue.push(data)
             } else if (self.directChannel) {
                 currentlySending = !isAck;
-
-                self.directChannel.send(JSON.stringify(data));
+                var dataToSend = JSON.stringify(data);
+                console.log("Data To Send: " + dataToSend.length.toString());
+                self.directChannel.send(dataToSend);
             } else {
                 currentlySending = !isAck;
                 dhtSend(data);
@@ -206,13 +208,15 @@ function PeerConnection(config, peer) {
                     }
 
                 } else {
-                    togzSend = gzippedMsgArray[i];
+                    togzSend = new Buffer(gzippedMsgArray[i]);
 
                     if (currentlySending && USE_ACK) {
                         sendQueue.push(togzSend)
                     } else if (self.directChannel) {
                         currentlySending = true;
+                        console.log("Sending data: %d", togzSend.length);
                         self.directChannel.send(togzSend);
+                        console.log("Data sent");
                     } else {
                         currentlySending = true;
                         dhtSend(togzSend.toString('base64'));
@@ -339,16 +343,18 @@ function PeerConnection(config, peer) {
             tlsDataReady: function(connection) {
                 var d = connection.tlsData.getBytes();
                 var db64 = new Buffer(d).toString("base64");
+                console.log("tlsDataReady: %s", db64);
                 self.send({sysmsg: 'tls-data', data: db64});
             },
             dataReady: function(connection) {
                 var data = forge.util.decodeUtf8(connection.data.getBytes()).toString();
 
                 try {
+                    console.log("dataReady: %s", data);
                     data.toString().split("\n\n").forEach(function(d){
                         if(d == '') return;
                         var msg = JSON.parse(d);
-                        //console.log("TLS application data: %s", msg);
+
                         self.authenticatedConnection.events.emit('internal-message', {srcId: self.config.dstId, data: msg});
                     });
                 } catch(ex){
@@ -356,12 +362,23 @@ function PeerConnection(config, peer) {
                 }
             },
             closed: function(connection) {
+                console.log("closed: TLS closed");
                 tlsReady = false;
                 cbClosed(this);
             },
             error: function(connection, error) {
+                console.log("closed: TLS error");
                 tlsReady = false;
                 cbError(this, error);
+            },
+
+            getCertificate: function(connection, hint) {
+                console.log("CLIENT getCertificate: %s", hint);
+                return tlsCert;
+            },
+            getPrivateKey: function(connection, cert) {
+                console.log("CLIENT getPrivateKey:");
+                return tlsKey;
             }
         });
         self.tls.handshake();
@@ -400,6 +417,7 @@ function PeerConnection(config, peer) {
         if(remainingGzipLength > 0 && (data instanceof Buffer || data._isBuffer)){
 
             var buffer = data;
+            console.log("Received: %d" + data,data.length);
             if('data' in data){
                 buffer = new Buffer(data.data);
             }
@@ -418,7 +436,7 @@ function PeerConnection(config, peer) {
                 var compressedBuffer = Buffer.concat(currentReceivedGzData);
                 console.log(getTime() + ": Starting Uncompress");
                 var uncompressedBuffer = lz4.decode(compressedBuffer);
-                console.log(getTime() + ": Uncompress finished");
+                console.log(getTime() + ": Uncompress finished length:" + uncompressedBuffer.length.toString());
                 //var json = JSON.parse(uncompressedBuffer.toString())
                 var json = msgpack.decode(uncompressedBuffer);
                 console.log(getTime() + ": JSON parsed");
@@ -512,8 +530,10 @@ function PeerConnection(config, peer) {
             sysmsgHandlers[envelope.data.sysmsg].shift();
             f();
         }  else if ('sysmsg' in envelope.data && envelope.data.sysmsg === 'initiate-tls') {
+            console.log("Initiating TLS");
             if (!tlsCert || !tlsKey) {
                 self.send({sysmsg: 'abort-tls'});
+                console.log("No TLS Cert present");
                 return;
             }
 
@@ -522,12 +542,12 @@ function PeerConnection(config, peer) {
                 server: true,
                 sessionCache: {},
                 cipherSuites: [forge.tls.CipherSuites.TLS_RSA_WITH_AES_256_CBC_SHA],
-                verifyClient: false,
+                verifyClient: true,
                 verify: function(connection, verified, depth, certs) {
                     return true;
                 },
                 connected: function(connection) {
-                    console.log("TLS connected");
+                    console.log("connected: TLS connected");
                     tlsReady = true;
                     if(self.authenticatedConnection){
                         self.authenticatedConnection.destroy();
@@ -536,9 +556,11 @@ function PeerConnection(config, peer) {
                     self.events.emit('new-authenticated-connection', self.authenticatedConnection);
                 },
                 getCertificate: function(connection, hint) {
+                    console.log("getCertificate: returning %s", tlsCert);
                     return tlsCert;
                 },
                 getPrivateKey: function(connection, cert) {
+                    console.log("getPrivateKey:");
                     return tlsKey;
                 },
                 tlsDataReady: function(connection) {
@@ -547,6 +569,7 @@ function PeerConnection(config, peer) {
                     self.send({sysmsg: 'tls-data', data: db64});
                 },
                 dataReady: function(connection) {
+                    console.log("dataReady: ");
                     var data = forge.util.decodeUtf8(connection.data.getBytes()).toString();
                     try {
                         data.toString().split("\n\n").forEach(function(d){
@@ -565,11 +588,13 @@ function PeerConnection(config, peer) {
                 },
                 error: function(connection, error) {
                     tlsReady = false;
-                    console.log('Error on TLS connection to %s: %s', self.config.dstId, error);
+                    console.log('Error on TLS connection to %s: %s', self.config.dstId, error.message);
                 }
             });
+            console.log("TLS server part initialized");
 
         } else if ('sysmsg' in envelope.data && envelope.data.sysmsg === 'tls-data') {
+            console.log("tls-data: %s", envelope.data.data);
             if(self.tls){
                 self.tls.process(new Buffer(envelope.data.data, "base64"));
             } else {
