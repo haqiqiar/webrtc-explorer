@@ -32,7 +32,7 @@ var server = net.createServer(function(socket){
 
                 if(currentData !== '') {
                     var msg = JSON.parse(currentData);
-                    console.log("Data length: " + currentData.length.toString());
+                    console.log("Data length: %s Data: %s", currentData.length.toString(), currentData);
                     dispatcher(msg, socket);
                 }
                 i = cachedData.indexOf("\n\n");
@@ -63,6 +63,7 @@ var server = net.createServer(function(socket){
     });
 
     function send(data, socket){
+        console.log("Sending: %s", JSON.stringify(data));
         try {
             socket.write(JSON.stringify(data) + '\n\n');
         } catch(ex){
@@ -145,6 +146,7 @@ var server = net.createServer(function(socket){
             peerconnection.events.on('new-authenticated-connection', function(authenticatedConnection){
                 var authId = uuid.v4();
                 objectStore[authId] = authenticatedConnection;
+
 
                 send({
                     'type': 'event',
@@ -304,6 +306,8 @@ var server = net.createServer(function(socket){
     }
 
     function peerConnection_getRemoteCertificate(msg, socket){
+        var remoteCert = objectStore[msg.objectId].remoteCertificate;
+        var bla = forge.pki.certificateToPem(remoteCert);
         send({
             'type': 'r',
             'callId': msg['callId'],

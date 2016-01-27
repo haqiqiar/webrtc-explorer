@@ -18134,6 +18134,11 @@ function PeerConnection(config, peer) {
                 cipherSuites: [forge.tls.CipherSuites.TLS_RSA_WITH_AES_256_CBC_SHA],
                 verifyClient: true,
                 verify: function(connection, verified, depth, certs) {
+                    if(verified !== forge.pki.certificateError.unknown_ca){
+                        return verified;
+                    }
+
+                    self.remoteCertificate = certs[0];
                     return true;
                 },
                 connected: function(connection) {
