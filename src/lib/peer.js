@@ -153,7 +153,8 @@ function Peer(config) {
                     peerconnections[envelope.srcId] = new PeerConnection({dstId: envelope.srcId, wrtc: config.wrtc, p12: config.p12, p12password: config.p12password}, self);
                     self.events.emit('new-peerconnection', peerconnections[envelope.srcId]);
                 }
-                self.events.emit('message', envelope);
+                if(!self.destroyed)
+                    self.events.emit('message', envelope);
                 //peerconnections[envelope.srcId].events.emit('message', envelope);
             }
         } else if (nextHop === self.peerId.toHex()){
