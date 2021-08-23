@@ -10,6 +10,10 @@ function FingerTable (peerId, events, channelManager) {
     // rowIndex: {fingerId: , channel:}
     var ready = false;
 
+    self.getTable = function(data) {
+        return table;
+    };
+
     self.predecessorUpdate = function(data) {
         predecessorId = data.predecessorId;
     };
