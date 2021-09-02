@@ -38,7 +38,7 @@ function ChannelManager(peerId, ioc, router) {
 
             channel.signal(data.offer.signal);
 
-            channel.on('ready', function() {
+            channel.on('connect', function() {
                 log('channel ready to send');
                 channel.on('message', function(){
                     log('DEBUG: this channel should be '+
@@ -55,7 +55,7 @@ function ChannelManager(peerId, ioc, router) {
         log('acceptOffer');
         var channel = new SimplePeer({trickle: false});
 
-        channel.on('ready', function() { 
+        channel.on('connect', function() { 
             log('channel ready to listen');
             channel.on('message', router);
         });
